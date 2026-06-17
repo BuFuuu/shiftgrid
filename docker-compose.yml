@@ -1,0 +1,37 @@
+services:
+  init-perms:
+    # One-shot: make sure the host projects dir exists and is owned by the UID/GID the app runs as. The long-lived app stays non-root and fully capability-stripped
+    build: .
+    user: "0:0"
+    entrypoint: ["sh", "-c", "mkdir -p /host_projects && chown -R ${PUID:-1000}:${PGID:-1000} /host_projects"]
+    volumes:
+      - ${HOME:-${USERPROFILE}}/shiftgrid-projects:/host_projects
+    restart: "no"
+
+  shiftgrid:
+    build: .
+    depends_on:
+      init-perms:
+        condition: service_completed_successfully
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    mem_limit: 512m
+    cpus: "1.0"
+    user: "${PUID:-1000}:${PGID:-1000}"
+    ports:
+      - "127.0.0.1:8000:8000" # Careful changing these! The app does not have authentication!!
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - ${HOME:-${USERPROFILE}}/shiftgrid-projects:/host_projects
+      - ./Workflows:/app/Workflows:ro
+      - ./Checklists:/app/Checklists:ro
+    environment:
+      PROJECTS_DIR: /host_projects
+      HOME: /tmp                      # passwd-less UID has no home; point it at the writable tmpfs
+      HOST_HOME: ${HOME:-${USERPROFILE}}
+      HOST_PROJECTS_DIR: ${HOME:-${USERPROFILE}}/shiftgrid-projects

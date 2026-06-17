@@ -1,0 +1,679 @@
+{% extends "project_base.html" %}
+{% block title %}Endpoints - {{ project.name }}{% endblock %}
+{% block content_class %}endpoints-content{% endblock %}
+{% block page_subtitle %}<span class="page-header-subtitle">{{ project.endpoints | length }} total</span>{% endblock %}
+{% block content %}
+{% set endpoint_checks = project.checklist | selectattr('scope', 'equalto', 'per_endpoint') | list %}
+{% set endpoint_check_groups = {} %}
+{% set endpoint_check_group_order = [] %}
+{% for item in endpoint_checks %}
+  {% set cat = item.category or 'uncategorized' %}
+  {% if cat not in endpoint_check_groups %}
+    {% set _ = endpoint_check_groups.update({cat: {'id': cat, 'name': item.category_name or 'Uncategorized', 'checks': []}}) %}
+    {% set _ = endpoint_check_group_order.append(cat) %}
+  {% endif %}
+  {% set _ = endpoint_check_groups[cat].checks.append(item) %}
+{% endfor %}
+
+{% set group_buckets = {'_unassigned': []} %}
+{% set group_order = ['_unassigned'] %}
+{% for g in project.feature_groups %}
+  {% set _ = group_buckets.update({g.id: []}) %}
+  {% set _ = group_order.append(g.id) %}
+{% endfor %}
+{% for a in project.endpoints %}
+  {% set gid = a.feature_group or '_unassigned' %}
+  {% if gid not in group_buckets %}{% set gid = '_unassigned' %}{% endif %}
+  {% set _ = group_buckets[gid].append(a) %}
+{% endfor %}
+
+{% set testing_views = {} %}
+{% for view in focused_endpoints_workflow.focused %}
+  {% set _ = testing_views.update({view.endpoint.id: view}) %}
+{% endfor %}
+
+{% macro endpoint_check_row(item, a) %}
+  {% set r = item.results.get(a.id, {'status': 'pending', 'observations': '', 'evidence': []}) %}
+  {% set check_status = r.status or 'pending' %}
+  {% set status_class = check_status | replace(' ', '_') %}
+  {% set obs_text = r.observations or '' %}
+  <li id="endpoint-check-{{ item.id }}-{{ a.id }}" class="step-row endpoint-check-step status-row-{{ status_class }}">
+    <div class="step-row-main">
+      <strong class="step-title">{{ item.title }} <span class="muted small">({{ item.category_name }})</span></strong>
+      <form method="post" action="{{ url_for('web.update_check', check_id=item.id) }}" class="inline-form step-status-form">
+        <input type="hidden" name="return_to" value="endpoints">
+        <input type="hidden" name="endpoint_id" value="{{ a.id }}">
+        <select name="status" aria-label="status" class="status status-{{ status_class }} status-select" onchange="this.form.submit();">
+          {% for s in ['pending','failed','passed','warning','vulnerable','not applicable'] %}
+            <option value="{{ s }}" {% if check_status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      <button type="button" class="step-notes-preview notes-toggle" aria-label="Edit observations" data-tooltip="{{ obs_text or 'No observations yet - click to add' }}" data-empty="{{ 'true' if not obs_text else 'false' }}" aria-expanded="false">
+        <span class="step-notes-preview-text">{{ obs_text if obs_text else 'add observation' }}</span>
+      </button>
+      {% if r.evidence %}
+        <span class="step-evidence-icons">
+          {% for ev in r.evidence %}
+            <a class="ctx-icon-svg step-evidence-link" href="{{ url_for('web.download_check_evidence', check_id=item.id, evidence_id=ev.id) }}?endpoint_id={{ a.id }}" data-tooltip="{{ ev.name }} ({{ ev.size }} bytes)" data-empty="false" aria-label="Download evidence {{ ev.name }}" download>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </a>
+          {% endfor %}
+        </span>
+      {% endif %}
+      <button type="button" class="ctx-icon-svg endpoint-check-upload-toggle" aria-label="Upload raw capture" data-tooltip="Upload raw 3rd-party tool output / screenshot / log" data-empty="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </button>
+    </div>
+    <div class="step-notes-editor row-editor" hidden>
+      <form method="post" action="{{ url_for('web.update_check', check_id=item.id) }}" class="inline-form step-notes-form">
+        <input type="hidden" name="return_to" value="endpoints">
+        <input type="hidden" name="endpoint_id" value="{{ a.id }}">
+        <textarea name="observations" rows="3" class="step-notes-full" placeholder="What you tested, what you saw, what it means">{{ obs_text }}</textarea>
+        <button class="btn icon-btn" type="submit" title="Save observations" aria-label="Save observations">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        </button>
+      </form>
+    </div>
+    <div class="endpoint-check-upload row-editor" hidden>
+      <form method="post" action="{{ url_for('web.add_check_evidence', check_id=item.id) }}" class="inline-form" enctype="multipart/form-data" title="Raw 3rd-party output only -- put your own summary in observations">
+        <input type="hidden" name="return_to" value="endpoints">
+        <input type="hidden" name="endpoint_id" value="{{ a.id }}">
+        <select name="source_type" required aria-label="Evidence source type">
+          <option value="" disabled selected>raw capture source...</option>
+          <option value="tool_output">tool output</option>
+          <option value="screenshot">screenshot</option>
+          <option value="log">log</option>
+          <option value="raw_response">raw response</option>
+          <option value="config">config</option>
+          <option value="file_content">file content</option>
+          <option value="other">other</option>
+        </select>
+        <input type="file" name="file" required>
+        <button class="btn small primary" type="submit">Upload</button>
+      </form>
+    </div>
+  </li>
+{% endmacro %}
+
+{% macro endpoint_status_icon(s) -%}
+{% if s == 'vulnerable' %}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4v5c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7l8-4z"/><path d="M12 8v4"/><circle cx="12" cy="15.5" r="0.6" fill="currentColor"/></svg>
+{% elif s == 'focused' %}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2"/></svg>
+{% elif s == 'tested' %}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><polyline points="8.5 12.3 11 14.8 15.5 9.5"/></svg>
+{% elif s == 'out-of-scope' %}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><line x1="6.2" y1="6.2" x2="17.8" y2="17.8"/></svg>
+{% else %}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/></svg>
+{% endif %}
+{%- endmacro %}
+
+{% if not project.endpoints %}
+<section class="panel findings-empty-panel">
+  <div class="findings-empty">
+    <svg viewBox="0 0 24 24" width="48" height="48" aria-hidden="true" opacity="0.5"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/></svg>
+    <h2>No endpoints yet</h2>
+  </div>
+</section>
+{% else %}
+<div class="checklist-toolbar endpoints-toolbar">
+  <div class="check-filter-stats endpoint-filter-stats" aria-label="Filter by status">
+    {% for s in ['todo','focused','tested','out-of-scope','vulnerable'] %}
+      <div class="check-filter-stat f-{{ s }}" data-status="{{ s }}" role="button" tabindex="0" aria-pressed="false" title="Show only {{ s }} endpoints">
+        <div class="check-filter-stat-icon">{{ endpoint_status_icon(s) }}</div>
+        <div class="check-filter-stat-num" data-count>0</div>
+        <div class="check-filter-stat-label">{{ s }}</div>
+      </div>
+    {% endfor %}
+  </div>
+  <span class="checklist-action-sep" aria-hidden="true"></span>
+  <div class="check-action-stats">
+    <button type="button" class="check-filter-stat check-action-stat" id="endpoints-fold-toggle">
+      <div class="check-filter-stat-icon">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg>
+      </div>
+      <div class="check-filter-stat-label">Unfold all</div>
+    </button>
+    <button type="button" class="check-filter-stat check-action-stat" id="endpoints-sort-toggle">
+      <div class="check-filter-stat-icon">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h12M4 12h8M4 18h4"/><path d="M18 8V20M18 20l-3-3M18 20l3-3"/></svg>
+      </div>
+      <div class="check-filter-stat-label">Sort</div>
+    </button>
+  </div>
+</div>
+<div class="feature-group-list">
+{% for gid in group_order %}
+  {% set endpoints_in_group = group_buckets[gid] %}
+  {% set is_unassigned = (gid == '_unassigned') %}
+  {% if not (is_unassigned and not endpoints_in_group) %}
+  {% set group_name = 'Unassigned' if is_unassigned else (project.feature_groups | selectattr('id', 'equalto', gid) | map(attribute='name') | first) %}
+  <details class="feature-group" data-group-id="{{ gid }}" open>
+    <summary class="feature-group-head">
+      <span class="feature-group-title">
+        <span>{{ group_name }}</span>
+      </span>
+      <span class="feature-group-meta">
+        <span class="muted small">{{ endpoints_in_group | length }} endpoint{{ '' if endpoints_in_group | length == 1 else 's' }}</span>
+        {% if not is_unassigned %}
+          <form method="post" action="{{ url_for('web.delete_feature_group', group_id=gid) }}" class="inline" onclick="event.stopPropagation();">
+            <button class="btn danger small icon-btn" type="submit" title="Delete group" aria-label="Delete group" onclick="return confirm('Delete group? Endpoints in it will become unassigned.');">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </button>
+          </form>
+        {% endif %}
+      </span>
+    </summary>
+    <div class="feature-group-body">
+      {% if endpoints_in_group %}
+        {% for a in endpoints_in_group %}
+          {% set assigned = a.checks or [] %}
+          {% set total = assigned | length %}
+          {% set recorded = namespace(count=0, vulnerable=false) %}
+          {% for item in endpoint_checks %}
+            {% if item.id in assigned %}
+              {% set rr = item.results.get(a.id, {'status': 'pending'}) %}
+              {% if rr.status != 'pending' %}{% set recorded.count = recorded.count + 1 %}{% endif %}
+              {% if rr.status == 'vulnerable' %}{% set recorded.vulnerable = true %}{% endif %}
+            {% endif %}
+          {% endfor %}
+          {% set endpoint_status = a.status or 'todo' %}
+          {% set testing_view = testing_views.get(a.id) %}
+          <details id="endpoint-{{ a.id }}" class="endpoint-card endpoint-status-{{ endpoint_status | replace('-', '_') }}" data-statuses="{{ endpoint_status }}{% if recorded.vulnerable %} vulnerable{% endif %}">
+            <summary>
+              <div class="endpoint-summary-main">
+                <span class="endpoint-title">{% if a.title %}<strong class="ep-name">{{ a.title }}</strong> {% endif %}<code>{{ a.name }}</code></span>
+              </div>
+              <div class="endpoint-summary-meta">
+                <span class="pill">{{ a.type }}</span>
+                <span class="pill endpoint-status-pill endpoint-status-pill-{{ endpoint_status | replace('-', '_') }}">{{ endpoint_status }}</span>
+                {% if endpoint_status == 'tested' and a.tested_at %}
+                  <span class="done-at-stamp" title="Tested">
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                    <span>{{ a.tested_at | fmt_dt }}</span>
+                  </span>
+                {% endif %}
+                {% if recorded.vulnerable %}<span class="pill endpoint-vuln-pill" title="At least one assigned check is marked vulnerable">vulnerable</span>{% endif %}
+                {{ agent_tags(a.focused_by, a.done_by) }}
+                <span class="muted small">{{ recorded.count }}/{{ total }} checks recorded</span>
+              </div>
+            </summary>
+            <div class="endpoint-details">
+              <div class="endpoint-edit-fields">
+                <form method="post" action="{{ url_for('web.set_endpoint_feature_group', endpoint_id=a.id) }}" class="contents-form">
+                  <select name="group_id" class="status-select" title="Feature group" onchange="this.form.submit()">
+                    <option value="" selected disabled hidden>Change group</option>
+                    <option value="_unassigned">Unassigned</option>
+                    {% for fg in project.feature_groups %}
+                      <option value="{{ fg.id }}">{{ fg.name }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
+                <form method="post" action="{{ url_for('web.set_endpoint_status', endpoint_id=a.id) }}" class="contents-form">
+                  <select name="status" aria-label="status" class="status status-{{ endpoint_status | replace('-', '_') }} status-select" title="Status" onchange="this.form.submit()">
+                    {% for s in ['todo','focused','tested','out-of-scope'] %}
+                      <option value="{{ s }}" {% if endpoint_status == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
+                <form method="post" action="{{ url_for('web.edit_endpoint', endpoint_id=a.id) }}" class="contents-form endpoint-edit-inline">
+                  <input type="text" name="title" value="{{ a.title or '' }}" placeholder="Title" class="endpoint-in endpoint-in-title" title="Title">
+                  <input type="text" name="observations" value="{{ a.observations or '' }}" placeholder="Observations" class="endpoint-in endpoint-in-obs" title="Observations">
+                  <button class="btn icon-btn" type="submit" title="Save observations" aria-label="Save observations">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  </button>
+                </form>
+              </div>
+              {# Status flow: state machine map. Arrows = legal transitions; only the current point is coloured.
+                 For a focused endpoint the highlight advances through its sub-stages (adjust -> execute). #}
+              {% set fsm_adjust = (endpoint_status == 'focused' and testing_view and not testing_view.checks_adjusted) %}
+              {% set fsm_exec = (endpoint_status == 'focused' and testing_view and testing_view.checks_adjusted) %}
+              <div class="endpoint-fsm-row">
+              <div class="endpoint-fsm" aria-label="status flow">
+                <span class="fsm-node s-oos{% if endpoint_status == 'out-of-scope' %} is-current{% endif %}"><svg class="fsm-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><line x1="6.2" y1="6.2" x2="17.8" y2="17.8"/></svg><span>out-of-scope</span></span>
+                <svg class="fsm-arrow" viewBox="0 0 38 16" width="38" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="8" x2="31" y2="8"/><polyline points="12 3 6 8 12 13"/><polyline points="26 3 32 8 26 13"/></svg>
+                <span class="fsm-node s-todo{% if endpoint_status == 'todo' %} is-current{% endif %}"><svg class="fsm-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/></svg><span>todo</span></span>
+                <span class="fsm-edge">
+                  <span class="fsm-mini">needs group</span>
+                  <svg class="fsm-arrow" viewBox="0 0 38 16" width="38" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="8" x2="31" y2="8"/><polyline points="12 3 6 8 12 13"/><polyline points="26 3 32 8 26 13"/></svg>
+                </span>
+                <span class="fsm-node s-focused{% if endpoint_status == 'focused' %} is-current{% endif %}"><svg class="fsm-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2"/></svg><span>focused</span></span>
+                <svg class="fsm-arrow" viewBox="0 0 34 16" width="34" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="2" y1="8" x2="29" y2="8"/><polyline points="23 3 30 8 23 13"/></svg>
+                {% if testing_view and not testing_view.checks_adjusted %}
+                <span class="fsm-stage is-current fsm-stage-action">
+                  <span>adjust checks</span>
+                  <form method="post" action="{{ url_for('web.confirm_endpoint_checks_adjusted', endpoint_id=a.id) }}" class="fsm-inline-form">
+                    <input type="hidden" name="return_to" value="{{ url_for('web.endpoints') }}#endpoint-{{ a.id }}">
+                    <button class="fsm-confirm-btn" type="submit" title="Confirm checks adjusted" aria-label="Confirm checks adjusted">
+                      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 12 10 17 19 7"/></svg>
+                    </button>
+                  </form>
+                </span>
+                {% elif testing_view and testing_view.checks_adjusted %}
+                <span class="fsm-stage is-done fsm-stage-action">
+                  <span>adjust checks</span>
+                  <svg class="fsm-stage-check" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 12 10 17 19 7"/></svg>
+                </span>
+                {% else %}
+                <span class="fsm-stage">adjust checks</span>
+                {% endif %}
+                <svg class="fsm-arrow" viewBox="0 0 34 16" width="34" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="2" y1="8" x2="29" y2="8"/><polyline points="23 3 30 8 23 13"/></svg>
+                {% if testing_view and testing_view.checks_adjusted %}
+                {% set tv_total = testing_view.checks | length %}
+                <span class="fsm-stage is-current fsm-stage-progress">
+                  <span>execute testing</span>
+                  <span class="fsm-progress" role="progressbar" aria-valuemin="0" aria-valuemax="{{ tv_total }}" aria-valuenow="{{ testing_view.done_count }}" title="{{ testing_view.done_count }} of {{ tv_total }} checks done">
+                    <span class="fsm-progress-fill" style="width: {{ (testing_view.done_count / tv_total * 100) if tv_total else 0 }}%"></span>
+                  </span>
+                  <span class="fsm-progress-label">{{ testing_view.done_count }}/{{ tv_total }}</span>
+                </span>
+                {% else %}
+                <span class="fsm-stage">execute testing</span>
+                {% endif %}
+                <svg class="fsm-arrow" viewBox="0 0 34 16" width="34" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="2" y1="8" x2="29" y2="8"/><polyline points="23 3 30 8 23 13"/></svg>
+                <span class="fsm-node s-tested{% if endpoint_status == 'tested' %} is-current{% endif %}"><svg class="fsm-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><polyline points="8.5 12.3 11 14.8 15.5 9.5"/></svg><span>tested</span>{% if testing_view %}<form method="post" action="{{ url_for('web.set_endpoint_status', endpoint_id=a.id) }}" class="fsm-inline-form"><input type="hidden" name="return_to" value="{{ url_for('web.endpoints') }}#endpoint-{{ a.id }}"><input type="hidden" name="status" value="tested"><button class="fsm-confirm-btn is-tested" type="submit" title="Mark tested" aria-label="Mark tested"{% if not testing_view.checks_adjusted or testing_view.next_check %} disabled{% endif %}><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 12 10 17 19 7"/></svg></button></form>{% endif %}</span>
+                <span class="fsm-edge">
+                  <span class="fsm-mini">reopen</span>
+                  <svg class="fsm-arrow" viewBox="0 0 34 16" width="34" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="2" y1="8" x2="28" y2="8" stroke-dasharray="3 4"/><polyline points="22 3 29 8 22 13"/></svg>
+                </span>
+                <span class="fsm-node s-todo ghost"><span>todo</span></span>
+              </div>
+                <form method="post" action="{{ url_for('web.delete_endpoint', endpoint_id=a.id) }}" class="endpoint-delete-form">
+                  <button class="btn danger icon-btn" type="submit" title="Delete endpoint" aria-label="Delete endpoint" onclick="return confirm('Delete this endpoint?');">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  </button>
+                </form>
+              </div>
+
+              {% set active_checks = [] %}
+              {% set na_checks = [] %}
+              {% for item in endpoint_checks if item.id in assigned %}
+                {% set rr = item.results.get(a.id, {'status': 'pending'}) %}
+                {% if (rr.status or 'pending') == 'not applicable' %}
+                  {% set _ = na_checks.append(item) %}
+                {% else %}
+                  {% set _ = active_checks.append(item) %}
+                {% endif %}
+              {% endfor %}
+
+              <details class="endpoint-checks-fold" data-fold-id="{{ a.id }}">
+                <summary class="endpoint-checks-summary">
+                  <svg class="endpoint-checks-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+                  <span>Endpoint checks</span>
+                  <span class="endpoint-checks-count">{{ active_checks | length }}</span>
+                </summary>
+                <div class="endpoint-checks">
+                {% if active_checks %}
+                  <ul class="stage-steps endpoint-checks-list">
+                  {% for item in active_checks %}
+                    {{ endpoint_check_row(item, a) }}
+                  {% endfor %}
+                  </ul>
+                {% else %}
+                  <p class="muted small">No active checks on this endpoint.</p>
+                {% endif %}
+                {% set has_unassigned = namespace(any=false) %}
+                {% for item in endpoint_checks if item.id not in assigned %}{% set has_unassigned.any = true %}{% endfor %}
+                {% if has_unassigned.any %}
+                  <form method="post" action="{{ url_for('web.assign_endpoint_check', endpoint_id=a.id) }}" class="endpoint-check-assign-form inline">
+                    <select name="check_id" required aria-label="Assign a check">
+                      <option value="" disabled selected>Assign a check…</option>
+                      {% for cat_id in endpoint_check_group_order %}
+                        {% set group = endpoint_check_groups[cat_id] %}
+                        {% set group_has = namespace(any=false) %}
+                        {% for item in group.checks if item.id not in assigned %}{% set group_has.any = true %}{% endfor %}
+                        {% if group_has.any %}
+                          <optgroup label="{{ group.name }}">
+                            {% for item in group.checks if item.id not in assigned %}
+                              <option value="{{ item.id }}">{{ item.title }}</option>
+                            {% endfor %}
+                          </optgroup>
+                        {% endif %}
+                      {% endfor %}
+                    </select>
+                    <button class="btn icon-btn endpoint-check-assign-btn" type="submit" title="Assign check to this endpoint" aria-label="Assign check to this endpoint">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                  </form>
+                {% endif %}
+                </div>
+              </details>
+
+              {% if na_checks %}
+              <details class="endpoint-checks-fold endpoint-na-fold" data-fold-id="na-{{ a.id }}">
+                <summary class="endpoint-checks-summary">
+                  <svg class="endpoint-checks-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+                  <span>Not applicable</span>
+                  <span class="endpoint-checks-count">{{ na_checks | length }}</span>
+                </summary>
+                <div class="endpoint-checks">
+                  <ul class="stage-steps endpoint-checks-list">
+                  {% for item in na_checks %}
+                    {{ endpoint_check_row(item, a) }}
+                  {% endfor %}
+                  </ul>
+                </div>
+              </details>
+              {% endif %}
+            </div>
+          </details>
+        {% endfor %}
+      {% else %}
+        <p class="muted small">No endpoints in this group.</p>
+      {% endif %}
+    </div>
+  </details>
+  {% endif %}
+{% endfor %}
+</div>
+{% endif %}
+
+<div class="floating-advance">
+  <button type="button" class="btn primary" id="add-endpoint-btn">+ Add endpoint</button>
+  <button type="button" class="btn primary" id="bulk-import-btn">Bulk import</button>
+  <button type="button" class="btn primary" id="add-group-btn">+ Feature group</button>
+</div>
+
+<div class="endpoint-modal-backdrop" id="add-endpoint-modal" hidden>
+  <div class="endpoint-modal" role="dialog" aria-modal="true" aria-labelledby="add-endpoint-title">
+    <div class="endpoint-modal-head">
+      <h2 id="add-endpoint-title">Add endpoint</h2>
+      <button type="button" class="endpoint-modal-close" id="add-endpoint-close" aria-label="Close">&times;</button>
+    </div>
+    <form method="post" action="{{ url_for('web.add_endpoint') }}" class="form endpoint-modal-form">
+      <label><span>Title</span><input type="text" name="title" placeholder="Login page"></label>
+      <label><span>Endpoint</span><input type="text" name="name" required placeholder="{{ 'host or IP' if workflow.id == 'network_infrastructure' else 'https://example.com/path' }}"></label>
+      <label><span>Type</span>
+        <select name="type" class="status-select">
+          {% set default_type = 'infrastructure' if workflow.id == 'network_infrastructure' else 'web' %}
+          {% for t in ['web', 'infrastructure', 'database'] %}
+            <option value="{{ t }}" {% if t == default_type %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label><span>Observations</span><textarea name="observations" rows="3" placeholder="free-form"></textarea></label>
+      <div class="actions"><button class="btn primary" type="submit">Add endpoint</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="endpoint-modal-backdrop" id="bulk-import-modal" hidden>
+  <div class="endpoint-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-import-title">
+    <div class="endpoint-modal-head">
+      <h2 id="bulk-import-title">Bulk import</h2>
+      <button type="button" class="endpoint-modal-close" id="bulk-import-close" aria-label="Close">&times;</button>
+    </div>
+    <form method="post" action="{{ url_for('web.bulk_import_endpoints') }}" enctype="multipart/form-data" class="form endpoint-modal-form">
+      <p class="muted small" style="margin:0;">Upload a text file with one entry per line — a list of IPs, hostnames, or URLs. Lines that aren't recognised are skipped.</p>
+      <label><span>File</span><input type="file" name="file" required></label>
+      <div class="actions"><button class="btn primary" type="submit">Import</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="endpoint-modal-backdrop" id="add-group-modal" hidden>
+  <div class="endpoint-modal" role="dialog" aria-modal="true" aria-labelledby="add-group-title">
+    <div class="endpoint-modal-head">
+      <h2 id="add-group-title">Add feature group</h2>
+      <button type="button" class="endpoint-modal-close" id="add-group-close" aria-label="Close">&times;</button>
+    </div>
+    <form method="post" action="{{ url_for('web.add_feature_group') }}" class="form endpoint-modal-form">
+      <label><span>Group name</span><input type="text" name="name" required placeholder="Calendar / Admin / Chemicals…"></label>
+      <div class="actions"><button class="btn primary" type="submit">Create group</button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+  (function () {
+    [['add-endpoint-btn', 'add-endpoint-modal', 'add-endpoint-close'],
+     ['bulk-import-btn', 'bulk-import-modal', 'bulk-import-close'],
+     ['add-group-btn', 'add-group-modal', 'add-group-close']].forEach(function (ids) {
+      const openBtn = document.getElementById(ids[0]);
+      const modal = document.getElementById(ids[1]);
+      const closeBtn = document.getElementById(ids[2]);
+      if (!openBtn || !modal) return;
+      function open() {
+        modal.hidden = false;
+        const first = modal.querySelector('input, textarea, select');
+        if (first) first.focus();
+      }
+      function close() { modal.hidden = true; }
+      openBtn.addEventListener('click', open);
+      if (closeBtn) closeBtn.addEventListener('click', close);
+      modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) close(); });
+    });
+  })();
+  (function () {
+    // Slim assigned-check rows: toggle the observations editor / evidence upload panel.
+    function toggler(btnSelector, panelSelector) {
+      document.querySelectorAll(btnSelector).forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const li = btn.closest('li');
+          if (!li) return;
+          const panel = li.querySelector(panelSelector);
+          if (!panel) return;
+          const open = !panel.hidden;
+          panel.hidden = open;
+          btn.setAttribute('aria-expanded', String(!open));
+          if (!open) { const f = panel.querySelector('textarea, select, input'); if (f) f.focus(); }
+        });
+      });
+    }
+    toggler('.notes-toggle', '.step-notes-editor');
+    toggler('.endpoint-check-upload-toggle', '.endpoint-check-upload');
+  })();
+  (function () {
+    // Keep each endpoint's "Assigned checks" fold open across the POST→reload that
+    // a status/observation change triggers. Runs synchronously before live.js
+    // restores scroll, so the page height is already correct when it does.
+    const foldKey = 'pg-endpoint-checks-open:{{ project.id }}';
+    const folds = Array.from(document.querySelectorAll('.endpoint-checks-fold'));
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(foldKey) || 'null'); } catch (e) { saved = null; }
+    if (Array.isArray(saved)) {
+      folds.forEach(function (f) { f.open = saved.includes(f.dataset.foldId); });
+    }
+    function save() {
+      const open = folds.filter(function (f) { return f.open; }).map(function (f) { return f.dataset.foldId; });
+      localStorage.setItem(foldKey, JSON.stringify(open));
+    }
+    folds.forEach(function (f) { f.addEventListener('toggle', save); });
+
+    // Pin scroll position right before any in-page POST so the reload lands where
+    // we were (same key live.js reads).
+    const scrollKey = 'pg-scroll:' + location.pathname;
+    document.addEventListener('submit', function () {
+      sessionStorage.setItem(scrollKey, String(window.scrollY));
+    }, true);
+  })();
+  (function () {
+    const storageKey = 'pg-feature-groups-open:{{ project.id }}';
+    const groups = Array.from(document.querySelectorAll('.feature-group'));
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch (e) { saved = null; }
+    if (Array.isArray(saved)) {
+      groups.forEach(function (g) { g.open = saved.includes(g.dataset.groupId); });
+    }
+    function save() {
+      const open = groups.filter(function (g) { return g.open; }).map(function (g) { return g.dataset.groupId; });
+      localStorage.setItem(storageKey, JSON.stringify(open));
+    }
+    groups.forEach(function (g) { g.addEventListener('toggle', save); });
+
+    // Same persistence for individual endpoint cards — the live-poll reload
+    // would otherwise collapse whatever the operator was watching.
+    const cardKey = 'pg-endpoint-cards-open:{{ project.id }}';
+    const cards = Array.from(document.querySelectorAll('.endpoint-card'));
+    let savedCards = null;
+    try { savedCards = JSON.parse(localStorage.getItem(cardKey) || 'null'); } catch (e) { savedCards = null; }
+    if (Array.isArray(savedCards)) {
+      cards.forEach(function (c) { c.open = savedCards.includes(c.id); });
+    }
+    function saveCards() {
+      const open = cards.filter(function (c) { return c.open; }).map(function (c) { return c.id; });
+      localStorage.setItem(cardKey, JSON.stringify(open));
+    }
+    cards.forEach(function (c) { c.addEventListener('toggle', saveCards); });
+
+    // Open <details> ancestors and scroll to anchor on hash navigation.
+    function revealHash() {
+      const hash = window.location.hash;
+      if (!hash || hash.length < 2) return;
+      const target = document.getElementById(hash.slice(1));
+      if (!target) return;
+      let node = target.parentElement;
+      while (node) {
+        if (node.tagName === 'DETAILS') node.open = true;
+        node = node.parentElement;
+      }
+      target.scrollIntoView({block: 'center'});
+    }
+    revealHash();
+    window.addEventListener('hashchange', revealHash);
+  })();
+  (function () {
+    // Endpoints toolbar: status filter + unfold-all + sort, mirroring the checklist page.
+    const toolbar = document.querySelector('.endpoints-toolbar');
+    if (!toolbar) return;
+    const cards = Array.from(document.querySelectorAll('.endpoint-card'));
+    const groups = Array.from(document.querySelectorAll('.feature-group'));
+    const filterStats = Array.from(toolbar.querySelectorAll('.check-filter-stat[data-status]'));
+    const foldButton = document.getElementById('endpoints-fold-toggle');
+    const sortButton = document.getElementById('endpoints-sort-toggle');
+    const statusRank = { vulnerable: 0, focused: 1, todo: 2, tested: 3, 'out-of-scope': 4 };
+    const selected = {};
+
+    // An endpoint carries its lifecycle status plus "vulnerable" when any assigned
+    // check is vulnerable, so a card can match more than one filter (like checklist rows).
+    function cardStatuses(card) {
+      return (card.dataset.statuses || '').trim().split(/\s+/).filter(Boolean);
+    }
+    function cardRank(card) {
+      const s = cardStatuses(card);
+      if (!s.length) return statusRank.todo;
+      return Math.min.apply(null, s.map(function (x) {
+        return statusRank[x] === undefined ? statusRank.todo : statusRank[x];
+      }));
+    }
+
+    filterStats.forEach(function (stat) {
+      const s = stat.dataset.status;
+      const n = cards.filter(function (c) { return cardStatuses(c).indexOf(s) !== -1; }).length;
+      const numEl = stat.querySelector('.check-filter-stat-num');
+      if (numEl) numEl.textContent = n;
+    });
+
+    function applyFilters() {
+      const on = filterStats.filter(function (stat) { return selected[stat.dataset.status]; });
+      const filtering = on.length > 0 && on.length < filterStats.length;
+      cards.forEach(function (c) {
+        if (!filtering) { c.hidden = false; return; }
+        c.hidden = !on.some(function (stat) {
+          return cardStatuses(c).indexOf(stat.dataset.status) !== -1;
+        });
+      });
+      // Hide feature groups with zero visible endpoints under the active filter.
+      groups.forEach(function (g) {
+        if (!filtering) { g.hidden = false; return; }
+        g.hidden = g.querySelectorAll('.endpoint-card:not([hidden])').length === 0;
+      });
+    }
+
+    function toggleStat(stat) {
+      const s = stat.dataset.status;
+      selected[s] = !selected[s];
+      stat.classList.toggle('filtered', selected[s]);
+      stat.setAttribute('aria-pressed', selected[s] ? 'true' : 'false');
+      applyFilters();
+      saveFilters();
+    }
+    filterStats.forEach(function (stat) {
+      stat.addEventListener('click', function () { toggleStat(stat); });
+      stat.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleStat(stat); }
+      });
+    });
+
+    document.querySelectorAll('.feature-group-body').forEach(function (body) {
+      Array.from(body.querySelectorAll(':scope > .endpoint-card')).forEach(function (card, i) {
+        card.dataset.originalIndex = i;
+      });
+    });
+
+    // Unfold all toggles both the feature groups and the endpoint cards inside them.
+    const foldables = groups.concat(cards);
+    function syncFoldButton() {
+      const allOpen = foldables.length > 0 && foldables.every(function (el) { return el.open; });
+      foldButton.classList.toggle('active', allOpen);
+      foldButton.querySelector('.check-filter-stat-label').textContent = allOpen ? 'Fold all' : 'Unfold all';
+    }
+    foldables.forEach(function (el) { el.addEventListener('toggle', syncFoldButton); });
+    foldButton.addEventListener('click', function () {
+      const shouldOpen = foldables.some(function (el) { return !el.open; });
+      foldables.forEach(function (el) { el.open = shouldOpen; });
+      syncFoldButton();
+    });
+
+    function runSort(toSorted) {
+      document.querySelectorAll('.feature-group-body').forEach(function (body) {
+        const items = Array.from(body.querySelectorAll(':scope > .endpoint-card')).sort(function (a, b) {
+          const ai = Number(a.dataset.originalIndex);
+          const bi = Number(b.dataset.originalIndex);
+          if (!toSorted) return ai - bi;
+          return cardRank(a) - cardRank(b) || ai - bi;
+        });
+        items.forEach(function (c) { body.appendChild(c); });
+      });
+      sortButton.dataset.sorted = toSorted ? 'true' : 'false';
+      sortButton.classList.toggle('active', toSorted);
+      sortButton.querySelector('.check-filter-stat-label').textContent = toSorted ? 'Unsort' : 'Sort';
+      applyFilters();
+    }
+
+    sortButton.addEventListener('click', function () {
+      runSort(sortButton.dataset.sorted !== 'true');
+      saveFilters();
+    });
+
+    // Persist the status filter and sort across reloads. The live poll reloads
+    // the whole page whenever the agent changes an endpoint/check via the API;
+    // without this the operator's active filter would reset on every reload.
+    // Keyed by project, like the fold state above.
+    const filterKey = 'pg-endpoints-filter:{{ project.id }}';
+    function saveFilters() {
+      try {
+        localStorage.setItem(filterKey, JSON.stringify({
+          statuses: filterStats
+            .filter(function (stat) { return selected[stat.dataset.status]; })
+            .map(function (stat) { return stat.dataset.status; }),
+          sorted: sortButton.dataset.sorted === 'true'
+        }));
+      } catch (e) { /* localStorage may be unavailable */ }
+    }
+    function restoreFilters() {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(filterKey) || 'null'); }
+      catch (e) { saved = null; }
+      if (!saved) return;
+      if (Array.isArray(saved.statuses)) {
+        saved.statuses.forEach(function (s) { selected[s] = true; });
+        filterStats.forEach(function (stat) {
+          const on = !!selected[stat.dataset.status];
+          stat.classList.toggle('filtered', on);
+          stat.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
+      // runSort() also re-applies the status filter; call applyFilters directly
+      // only when we're not sorting.
+      if (saved.sorted) runSort(true); else applyFilters();
+    }
+    restoreFilters();
+
+    syncFoldButton();
+  })();
+</script>
+{% endblock %}

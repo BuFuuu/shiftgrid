@@ -1,0 +1,21 @@
+{% extends "project_base.html" %}
+{% block title %}Operator actions - {{ project.name }}{% endblock %}
+{% block page_subtitle %}<span class="page-header-subtitle">everything the human operator can do · the agent works through the <code>/api/v1</code> API on its own port</span>{% endblock %}
+{% block content %}
+{% for group in doc_groups %}
+<section class="panel">
+  <h2>{{ group.name }}</h2>
+  <ul class="opdoc-list">
+    {% for rule in group.rules %}
+    <li class="opdoc-row">
+      <span class="opdoc-methods">
+        {% for m in rule.methods %}<span class="pill opdoc-method {% if m == 'GET' %}opdoc-get{% else %}opdoc-action{% endif %}">{{ m }}</span>{% endfor %}
+      </span>
+      <code class="opdoc-path">{{ rule.path }}</code>
+      <span class="opdoc-desc muted">{{ rule.description }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% endblock %}

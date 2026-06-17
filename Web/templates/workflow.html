@@ -1,0 +1,456 @@
+﻿{% extends "project_base.html" %}
+{% block title %}Workflow - {{ project.name }}{% endblock %}
+{% block page_subtitle %}<span class="page-header-subtitle">Advance phases and work on steps</span>{% endblock %}
+{% block content %}
+{% set phase_ids = workflow.phases | map(attribute='id') | list %}
+{% set current_idx = phase_ids.index(project.current_phase) %}
+{# Single source of truth: the same resolver the model consults to gate advancing.
+   The button is enabled iff POST /advance would succeed (kind advance_phase|done). #}
+{% set advance_blocked = next_action and next_action.kind not in ['advance_phase', 'done'] %}
+
+<div class="floating-advance">
+  {% if next_action %}
+  <div class="next-action">
+    <button type="button" class="btn primary" id="whats-next-btn">What's next?</button>
+    <div class="next-action-pop" id="whats-next-pop">{{ next_action.label }}</div>
+  </div>
+  {% endif %}
+  <form method="post" action="{{ url_for('web.advance') }}">
+    <input type="hidden" name="return_to" value="{{ url_for('web.workflow') }}">
+    <button class="btn primary" type="submit" {% if advance_blocked %}disabled title="{{ next_action.label }}"{% endif %}>Advance phase</button>
+  </form>
+  <form method="post" action="{{ url_for('web.toggle_agent_advance') }}" class="advance-access-form">
+    <input type="hidden" name="allowed" value="{{ '0' if project.agent_advance_allowed else '1' }}">
+    <button type="submit" class="agent-advance-switch{% if project.agent_advance_allowed %} on{% endif %}" role="switch" aria-checked="{{ 'true' if project.agent_advance_allowed else 'false' }}" title="{% if project.agent_advance_allowed %}Agents may advance phases on their own — click to restrict advancing to the operator only{% else %}Only the operator may advance phases — click to also let agents advance on their own{% endif %}">
+      <span class="agent-advance-switch-label">Agents may advance</span>
+      <span class="agent-advance-switch-track" aria-hidden="true"><span class="agent-advance-switch-knob"></span></span>
+    </button>
+  </form>
+</div>
+{% if next_action %}
+<script>
+  (function () {
+    var btn = document.getElementById('whats-next-btn');
+    var pop = document.getElementById('whats-next-pop');
+    if (!btn || !pop) return;
+    var timer;
+    btn.addEventListener('click', function () {
+      clearTimeout(timer);
+      pop.classList.add('show');
+      timer = setTimeout(function () { pop.classList.remove('show'); }, 3000);
+    });
+  })();
+</script>
+{% endif %}
+
+<div class="workflow-stages">
+  {% for phase in workflow.phases %}
+    {% set idx = loop.index0 %}
+    {% set state = 'done' if (idx < current_idx or (workflow_terminal and idx == current_idx)) else ('active' if idx == current_idx else 'future') %}
+    {% set phase_view = phase_views.get(phase.id, {'description': phase.description or '', 'modify_mode': false, 'is_done': false}) %}
+    {% set phase_desc = phase_view.description or '' %}
+    {% set phase_modify_mode = phase_view.modify_mode %}
+    <section class="stage-card {{ state }}{% if phase_modify_mode %} modify-mode{% endif %}" id="phase-{{ phase.id }}" data-phase="{{ phase.id }}">
+      <div class="stage-topright">
+        <code class="stage-phase-id">{{ phase.id }}</code>
+        {% if phase_view.advanced_at %}
+          <span class="stage-advanced-at" title="First advanced to this phase">{{ phase_view.advanced_at | fmt_dt }}</span>
+        {% endif %}
+      </div>
+      <div class="stage-head">
+        <div class="stage-marker {{ state }}"{% if phase_desc %} data-tooltip="{{ phase_desc }}"{% endif %}>
+          <span class="stage-num">{{ loop.index }}</span>
+          <span class="stage-icon">{{ phase_icon(phase) }}</span>
+        </div>
+        <div class="stage-title">
+          <div class="stage-title-line">
+          <h2{% if phase_desc %} data-tooltip="{{ phase_desc }}"{% endif %}>{{ phase.name }}</h2>
+          <div class="muted">
+            {% if phase.optional %}<span class="pill">optional</span>{% endif %}
+            {% if phase.free %}<span class="pill">free</span>{% endif %}
+            {% if phase_view.disabled %}<span class="pill" data-tooltip="Every step in this phase is disabled — the workflow skips straight over it">skipped</span>{% endif %}
+            {% if phase.human_advance %}<span class="ctx-icon-svg human-advance-icon" data-tooltip="Can only be advanced by the human operator" aria-label="Can only be advanced by the human operator"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg></span>{% endif %}
+            {% if phase_modify_mode %}<span class="pill modify-mode-pill">re-opened</span>{% endif %}
+            {% if idx < current_idx or ((workflow_terminal or phase_modify_mode) and idx == current_idx) %}
+              <form method="post" action="{{ url_for('web.toggle_workflow_phase_modify_mode') }}" class="inline-form phase-modify-form">
+                <input type="hidden" name="phase_id" value="{{ phase.id }}">
+                <input type="hidden" name="enabled" value="{{ '0' if phase_modify_mode else '1' }}">
+                <button type="submit" class="btn small modify-mode-toggle{% if phase_modify_mode %} active{% endif %}" title="{% if phase_modify_mode %}Close the re-opened phase (all steps must be finished){% else %}Re-open this done phase for editing{% endif %}">
+                  {% if phase_modify_mode %}Close{% else %}Re-open{% endif %}
+                </button>
+              </form>
+            {% endif %}
+          </div>
+          </div>
+          <div class="phase-context-editor row-editor" hidden>
+            <form method="post" action="{{ url_for('web.update_workflow_phase_context') }}" class="form context-form">
+              <input type="hidden" name="phase_id" value="{{ phase.id }}">
+              <label><span>Phase description</span><textarea name="description" rows="3" placeholder="What this phase is about. Saved per-project -- leave empty to fall back to the workflow JSON default.">{{ phase_view.description or '' }}</textarea></label>
+              <div class="actions"><button class="btn primary" type="submit">Save phase description</button></div>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% macro checklist_check_row(item, is_focused=false) %}
+        {% set r = item.results.get('_global', {'status': 'pending', 'observations': '', 'evidence': []}) %}
+        {% set status_class = r.status | replace(' ', '_') %}
+        {% set is_focused = (r.status == 'focused') %}
+        {% set evidence_items = r.evidence or [] %}
+        {% set obs_text = r.observations or '' %}
+        <li class="step-row checklist-check-step {% if is_focused %}focused-check{% endif %}" data-check-id="{{ item.id }}">
+          <div class="step-row-main">
+            <a class="step-title checklist-check-title-link" href="{{ url_for('web.checklist') }}#check-{{ item.id }}" title="Open this check on the checklist page">{{ item.title }}</a>
+            <span class="ctx-icons" aria-hidden="true"></span>
+            <form method="post" action="{{ url_for('web.update_check', check_id=item.id) }}" class="inline-form check-status-form">
+              <input type="hidden" name="return_to" value="workflow">
+              <input type="hidden" name="status" value="{{ r.status }}">
+            </form>
+            {# Unified state dropdown: 'focused' is the mandatory working state
+               (claim) you pass through before a result — a real status now, so
+               every option posts the status form. Matches the checklist page. #}
+            <select aria-label="state" class="status status-{{ status_class }} status-select check-state-select">
+              {% for s in ['focused','pending','failed','passed','warning','vulnerable','not applicable'] %}
+                <option value="{{ s }}" {% if r.status == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+            <button type="button" class="step-notes-preview notes-toggle" aria-label="Edit observations" data-tooltip="{{ obs_text or 'No observations yet - click to add' }}" data-empty="{{ 'true' if not obs_text else 'false' }}" aria-expanded="false">
+              <span class="step-notes-preview-text">{{ obs_text if obs_text else 'add observation' }}</span>
+            </button>
+            {% if evidence_items %}
+              <span class="step-evidence-icons">
+                {% for ev in evidence_items %}
+                  <a class="ctx-icon-svg step-evidence-link" href="{{ url_for('web.download_check_evidence', check_id=item.id, evidence_id=ev.id) }}" data-tooltip="{{ ev.name }} ({{ ev.size }} bytes)" data-empty="false" aria-label="Download evidence {{ ev.name }}" download>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  </a>
+                {% endfor %}
+              </span>
+            {% endif %}
+            {{ agent_tags(r.focused_by, r.done_by) }}
+          </div>
+          <div class="step-notes-editor row-editor" hidden>
+            <form method="post" action="{{ url_for('web.update_check', check_id=item.id) }}" class="inline-form step-notes-form">
+              <input type="hidden" name="return_to" value="workflow">
+              <textarea name="observations" rows="3" class="step-notes-full" placeholder="step observations">{{ obs_text }}</textarea>
+              <button class="btn icon-btn" type="submit" title="Save observations" aria-label="Save observations">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                  <polyline points="17 21 17 13 7 13 7 21"/>
+                  <polyline points="7 3 7 8 15 8"/>
+                </svg>
+              </button>
+            </form>
+          </div>
+        </li>
+      {% endmacro %}
+      {% if phase.steps %}
+        <ul class="stage-steps">
+          {% for step in phase.steps %}
+            {% set check_id = step.check or step.id %}
+            {% set step_id = step.id or check_id %}
+            {% set ss = step_states.get(phase.id ~ '/' ~ step_id, {'status': 'pending', 'observations': ''}) %}
+            {% set access = step_access.get(phase.id ~ '/' ~ step_id, {'allowed': false, 'reason': 'unknown'}) %}
+            {% set status_class = ss.status | replace(' ', '_') %}
+            {% set step_desc = ss.description if ss.description is defined and ss.description else '' %}
+            {% set step_ex = ss.examples if ss.examples is defined and ss.examples else '' %}
+            {% set step_disabled = ss.disabled if ss.disabled is defined and ss.disabled else false %}
+            {% set is_current_step = next_action and next_action.kind == 'do_step' and next_action.phase_id == phase.id and next_action.target == step_id %}
+            <li class="step-row {% if step_disabled %}disabled-step{% endif %} {% if not access.allowed and not step_disabled %}locked{% endif %} {% if is_current_step %}current-step{% endif %}">
+              <div class="step-row-main">
+                <strong class="step-title" title="{{ step.title or step_id | replace('_', ' ') | title }}">{{ step.title or step_id | replace('_', ' ') | title }}</strong>
+                <span class="ctx-icons">
+                  <button type="button" class="ctx-icon-svg ctx-toggle" aria-label="Description" data-tooltip="{{ step_desc or 'No description yet -- click to add' }}" data-empty="{{ 'true' if not step_desc else 'false' }}">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M16 4v3h3"/><path d="M8 11h8M8 15h8M8 19h5"/></svg>
+                  </button>
+                  <button type="button" class="ctx-icon-svg ctx-toggle" aria-label="Examples" data-tooltip="{{ step_ex or 'No examples yet -- click to add' }}" data-empty="{{ 'true' if not step_ex else 'false' }}">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 4 10.5c-.7.7-1 1.5-1 2.5H9c0-1-.3-1.8-1-2.5A6 6 0 0 1 12 3z"/></svg>
+                  </button>
+                  <form method="post" action="{{ url_for('web.toggle_workflow_step_disabled') }}" class="inline-form step-disable-form">
+                    <input type="hidden" name="phase_id" value="{{ phase.id }}">
+                    <input type="hidden" name="step_id" value="{{ step_id }}">
+                    <input type="hidden" name="disabled" value="{{ '0' if step_disabled else '1' }}">
+                    <button type="submit" class="ctx-icon-svg step-disable-toggle" aria-label="{{ 'Enable step' if step_disabled else 'Disable step (exclude from this project)' }}" data-tooltip="{{ 'Click to re-enable and bring this step back into this project' if step_disabled else 'Disable this step in this project. The agent will treat it as out-of-scope and status, observations and evidence will be locked. Click again to re-enable.' }}" data-empty="{{ 'false' if step_disabled else 'true' }}" aria-pressed="{{ 'true' if step_disabled else 'false' }}">
+                      {% if step_disabled %}
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 9 8 9"/></svg>
+                      {% else %}
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
+                      {% endif %}
+                    </button>
+                  </form>
+                </span>
+                <form method="post" action="{{ url_for('web.update_workflow_step') }}" class="inline-form step-status-form">
+                  <input type="hidden" name="phase_id" value="{{ phase.id }}">
+                  <input type="hidden" name="step_id" value="{{ step_id }}">
+                  <select name="status" aria-label="status" class="status status-{{ status_class }} status-select" {% if step_disabled %}disabled title="Step is disabled in this project"{% elif not access.allowed %}disabled title="{% if access.reason == 'future_phase' %}This phase is not current yet{% elif access.reason == 'past_phase' %}This phase has already passed{% elif access.reason == 'previous_steps_need_observations' %}Add observations to the previous step first{% else %}Mark the previous step done or skipped first{% endif %}"{% endif %} onchange="this.form.submit();">
+                    {% for s in ['pending','focused','done','skipped'] %}
+                      <option value="{{ s }}" {% if ss.status == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
+                {% if step_disabled %}
+                  <span class="step-lock muted small">disabled in this project</span>
+                {% elif not access.allowed %}
+                  <span class="step-lock muted small">
+                    {% if access.reason == 'future_phase' %}locked until this phase starts{% elif access.reason == 'past_phase' %}phase complete{% elif access.reason == 'previous_steps_need_observations' %}previous step needs observations{% else %}previous step first{% endif %}
+                  </span>
+                {% endif %}
+                <button type="button" class="step-notes-preview notes-toggle" aria-label="Edit observations" data-tooltip="{{ ss.observations or 'No observations yet - click to add' }}" data-empty="{{ 'true' if not ss.observations else 'false' }}" aria-expanded="false" {% if step_disabled %}disabled{% endif %}>
+                  <span class="step-notes-preview-text">{{ ss.observations if ss.observations else 'add observation' }}</span>
+                </button>
+                {% set step_evidence = ss.evidence if ss.evidence is defined and ss.evidence else [] %}
+                {% if step_evidence %}
+                  <span class="step-evidence-icons">
+                    {% for ev in step_evidence %}
+                      <a class="ctx-icon-svg step-evidence-link" href="{{ url_for('web.download_step_evidence', phase_id=phase.id, step_id=step_id, evidence_id=ev.id) }}" data-tooltip="{{ ev.name }} ({{ ev.size }} bytes)" data-empty="false" aria-label="Download evidence {{ ev.name }}" download>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      </a>
+                    {% endfor %}
+                  </span>
+                {% endif %}
+                {% set _is_finished = ss.finished %}
+                {% set _endpoints_block = phase.id == 'endpoint_testing' and step_id in ('test_endpoints', 'review_notes_reopen_endpoints') and not endpoint_testing_status.ready %}
+                {% set _can_finish = ss.status in ('done', 'skipped') and (ss.observations or '') | trim and not step_disabled and not _endpoints_block %}
+                <form method="post" action="{{ url_for('web.finish_workflow_step') }}" class="inline-form step-finish-form">
+                  <input type="hidden" name="phase_id" value="{{ phase.id }}">
+                  <input type="hidden" name="step_id" value="{{ step_id }}">
+                  <button type="submit" class="ctx-icon-svg step-finish-btn" data-tooltip="{{ 'Step is disabled in this project' if step_disabled else ('Finished' if _is_finished else ('Finish step' if _can_finish else ('Finish testing all endpoints first (todo or focused remain)' if _endpoints_block else 'Set status to done or skipped and add observations first'))) }}" data-empty="{{ 'false' if _is_finished else 'true' }}" {% if not _can_finish and not _is_finished %}disabled{% endif %} aria-label="Finish step">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                </form>
+                {{ agent_tags(ss.focused_by, ss.done_by) }}
+              </div>
+              <div class="step-notes-editor row-editor" hidden>
+                <form method="post" action="{{ url_for('web.update_workflow_step') }}" class="inline-form step-notes-form">
+                  <input type="hidden" name="phase_id" value="{{ phase.id }}">
+                  <input type="hidden" name="step_id" value="{{ step_id }}">
+                  <textarea name="observations" rows="3" class="step-notes-full" placeholder="step observations">{{ ss.observations or '' }}</textarea>
+                  <button class="btn icon-btn" type="submit" title="Save observations" aria-label="Save observations">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                      <polyline points="17 21 17 13 7 13 7 21"/>
+                      <polyline points="7 3 7 8 15 8"/>
+                    </svg>
+                  </button>
+                </form>
+              </div>
+              <div class="step-context-editor row-editor" hidden>
+                <form method="post" action="{{ url_for('web.update_workflow_step_context') }}" class="form context-form">
+                  <input type="hidden" name="phase_id" value="{{ phase.id }}">
+                  <input type="hidden" name="step_id" value="{{ step_id }}">
+                  <label><span>Description</span><textarea name="description" rows="3" placeholder="What this step is about, why it matters">{{ step_desc }}</textarea></label>
+                  <label><span>Examples</span><textarea name="examples" rows="3" placeholder="Concrete examples, payloads, commands">{{ step_ex }}</textarea></label>
+                  <div class="actions"><button class="btn primary" type="submit">Save context</button></div>
+                </form>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if phase.id == 'endpoint_testing' %}
+        {% set few = focused_endpoints_workflow %}
+        {% set workflow_return_to = url_for('web.workflow') %}
+        {% macro endpoint_status_observations(endpoint, return_to) -%}
+          {% set ep_status = endpoint.status or 'todo' %}
+          {% set ep_status_class = ep_status | replace('-', '_') %}
+          {% set ep_obs = endpoint.observations or '' %}
+          <form method="post" action="{{ url_for('web.set_endpoint_status', endpoint_id=endpoint.id) }}" class="inline-form step-status-form">
+            <input type="hidden" name="return_to" value="{{ return_to }}">
+            <select name="status" aria-label="status" class="status status-{{ ep_status_class }} status-select" onchange="this.form.submit()">
+              {% for s in ['todo','focused','tested','out-of-scope'] %}
+                <option value="{{ s }}" {% if ep_status == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </form>
+          {{ agent_tags(endpoint.focused_by, endpoint.done_by) }}
+          <button type="button" class="step-notes-preview notes-toggle" aria-label="Edit observations" data-tooltip="{{ ep_obs or 'No observations yet - click to add' }}" data-empty="{{ 'true' if not ep_obs else 'false' }}" aria-expanded="false">
+            <span class="step-notes-preview-text">{{ ep_obs if ep_obs else 'add observation' }}</span>
+          </button>
+          <div class="step-notes-editor row-editor" hidden>
+            <form method="post" action="{{ url_for('web.edit_endpoint', endpoint_id=endpoint.id) }}" class="inline-form step-notes-form">
+              <input type="hidden" name="return_to" value="{{ return_to }}">
+              <textarea name="observations" rows="3" class="step-notes-full" placeholder="endpoint observations">{{ ep_obs }}</textarea>
+              <button class="btn icon-btn" type="submit" title="Save observations" aria-label="Save observations">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                  <polyline points="17 21 17 13 7 13 7 21"/>
+                  <polyline points="7 3 7 8 15 8"/>
+                </svg>
+              </button>
+            </form>
+          </div>
+        {%- endmacro %}
+        <div class="checklist-work-panel">
+          <h3 class="checklist-work-subhead">
+            In focus
+            <span class="muted small">{{ few.focused | length }} focused</span>
+          </h3>
+          {% if few.focused %}
+            <ul class="focused-endpoints-list">
+              {% for view in few.focused %}
+                <li class="focused-endpoints-item focused-endpoint">
+                  <div class="focused-endpoints-row">
+                    <a class="focused-endpoints-link" href="{{ url_for('web.endpoints') }}#endpoint-{{ view.endpoint.id }}">
+                      {% if view.endpoint.title %}<strong class="ep-name">{{ view.endpoint.title }}</strong> {% endif %}<code>{{ view.endpoint.name }}</code>
+                      <span class="muted small">{{ view.done_count }}/{{ view.checks | length }} checks</span>
+                    </a>
+                    <form method="post" action="{{ url_for('web.unfocus_endpoint', endpoint_id=view.endpoint.id) }}" class="inline">
+                      <input type="hidden" name="return_to" value="{{ workflow_return_to }}">
+                      <button class="btn small" type="submit" title="Unfocus this endpoint">Unfocus</button>
+                    </form>
+                  </div>
+                  {{ endpoint_status_observations(view.endpoint, workflow_return_to) }}
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted small">No endpoints currently in focus.</p>
+          {% endif %}
+          <h3 class="checklist-work-subhead">Recently worked on &mdash; last 3</h3>
+          {% if recent_tested_endpoints %}
+            <ul class="focused-endpoints-list">
+              {% for endpoint in recent_tested_endpoints %}
+                <li class="focused-endpoints-item tested-endpoint">
+                  <div class="focused-endpoints-row">
+                    <a class="focused-endpoints-link" href="{{ url_for('web.endpoints') }}#endpoint-{{ endpoint.id }}">
+                      {% if endpoint.title %}<strong class="ep-name">{{ endpoint.title }}</strong> {% endif %}<code>{{ endpoint.name }}</code>
+                      <span class="muted small">tested</span>
+                    </a>
+                  </div>
+                  {{ endpoint_status_observations(endpoint, workflow_return_to) }}
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted small">No endpoints tested yet.</p>
+          {% endif %}
+        </div>
+      {% endif %}
+      {% if phase.id == 'general_checks' %}
+        <div class="checklist-work-panel">
+          <h3 class="checklist-work-subhead">
+            In focus
+            <span class="muted small">{{ focused_global_checks | length }} focused</span>
+          </h3>
+          {% if focused_global_checks %}
+            <ul class="checklist-work-list stage-steps">
+              {% for item in focused_global_checks %}
+                {{ checklist_check_row(item, true) }}
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted small">No global check is currently focused. Pick one on the checklist page and focus it to start work.</p>
+          {% endif %}
+          <h3 class="checklist-work-subhead">Recently worked on &mdash; last 3</h3>
+          {% if recent_global_checks %}
+            <ul class="checklist-work-list stage-steps">
+              {% for item in recent_global_checks %}
+                {{ checklist_check_row(item, false) }}
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted small">No checks finished yet.</p>
+          {% endif %}
+        </div>
+      {% endif %}
+    </section>
+  {% endfor %}
+</div>
+{% if workflow_finished %}
+<div class="workflow-finished-panel">
+  <span class="workflow-finished-check" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12.5 11 15.5 16 9"/></svg>
+  </span>
+  <div class="workflow-finished-text">
+    <h2>Workflow finished</h2>
+    {% if workflow_finished_at %}
+      <span class="done-at-stamp" title="Finished">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+        <span>{{ workflow_finished_at | fmt_dt }}</span>
+      </span>
+    {% endif %}
+    <p class="muted small">Every phase and step is complete. Use &ldquo;Re-open&rdquo; on a phase to make changes.</p>
+  </div>
+</div>
+{% endif %}
+<script>
+  (function () {
+    document.querySelectorAll('.ctx-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var li = btn.closest('li');
+        if (!li) return;
+        var editor = li.querySelector('.step-context-editor');
+        if (!editor) return;
+        var open = !editor.hidden;
+        editor.hidden = open;
+        li.querySelectorAll('.ctx-toggle').forEach(function (b) {
+          b.setAttribute('aria-expanded', String(!open));
+        });
+        if (!open) {
+          var ta = editor.querySelector('textarea');
+          if (ta) ta.focus();
+        }
+      });
+    });
+    document.querySelectorAll('.phase-ctx-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var card = btn.closest('.stage-card');
+        if (!card) return;
+        var editor = card.querySelector('.phase-context-editor');
+        if (!editor) return;
+        var open = !editor.hidden;
+        editor.hidden = open;
+        btn.setAttribute('aria-expanded', String(!open));
+        if (!open) {
+          var ta = editor.querySelector('textarea');
+          if (ta) ta.focus();
+        }
+      });
+    });
+    document.querySelectorAll('.notes-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var li = btn.closest('li');
+        if (!li) return;
+        var editor = li.querySelector('.step-notes-editor');
+        if (!editor) return;
+        var open = !editor.hidden;
+        editor.hidden = open;
+        btn.setAttribute('aria-expanded', String(!open));
+        if (!open) {
+          var input = editor.querySelector('textarea[name="observations"]');
+          if (input) input.focus();
+        }
+      });
+    });
+    // Unified state dropdown on global-checks: 'focused' is now a real status like
+    // the rest, so every option posts the status form. Focus is mandatory before
+    // a result — the server rejects a result status until the check is focused.
+    document.querySelectorAll('.check-state-select').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        var li = sel.closest('li');
+        if (!li) return;
+        var sf = li.querySelector('.check-status-form');
+        if (!sf) return;
+        var input = sf.querySelector('input[name=status]');
+        if (input) input.value = sel.value;
+        sf.submit();
+      });
+    });
+  })();
+  (function () {
+    // Arriving from another page with #phase-<id> in the URL: the browser's
+    // native hash jump fires too early (before the sticky sidebar height calc,
+    // fonts and breadcrumb centering settle), so it lands near the top instead
+    // of on the target phase. Scroll to it ourselves once layout has settled.
+    function scrollToHashPhase() {
+      const hash = window.location.hash;
+      if (!hash || hash.indexOf('#phase-') !== 0) return;
+      const target = document.getElementById(hash.slice(1));
+      if (!target) return;
+      target.scrollIntoView({block: 'start'});
+    }
+    window.addEventListener('load', function () {
+      requestAnimationFrame(scrollToHashPhase);
+    });
+    window.addEventListener('hashchange', scrollToHashPhase);
+  })();
+</script>
+{% endblock %}

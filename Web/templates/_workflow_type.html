@@ -1,0 +1,27 @@
+{% macro workflow_type_icon(workflow_id) -%}
+  {% if workflow_id == 'network_infrastructure' %}
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="6" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.4 7.7l2.4 7M15.6 7.7l-2.4 7M8.5 6h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+  {% elif workflow_id == 'web_service' %}
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M14 5l-4 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  {% elif workflow_id == 'web_application_red_team' %}
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+  {% else %}
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 9h16M8 14h3M14 14h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+  {% endif %}
+{%- endmacro %}
+
+{% macro workflow_type_badge(workflow_id, label, color=None) -%}
+  <span class="workflow-type-badge workflow-type-{{ workflow_id }}"{% if color %} style="color: {{ color }}; border-color: {{ color }};"{% endif %}>
+    <span class="workflow-type-icon">{{ workflow_type_icon(workflow_id) }}</span>
+    <span>{{ label }}</span>
+  </span>
+{%- endmacro %}
+
+{% macro workflow_type_card(option) -%}
+  <div class="workflow-type-card">
+    {{ workflow_type_badge(option.id, option.name, option.color) }}
+    <div class="workflow-type-card-meta">
+      Workflow <code>{{ option.workflow_id }}</code> · Checklist <code>{{ option.checklist_id }}</code>
+    </div>
+  </div>
+{%- endmacro %}

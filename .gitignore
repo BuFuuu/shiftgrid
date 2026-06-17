@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local project data / runtime
+host_projects/
+*.zip
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

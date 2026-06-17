@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block body %}
+{# Minimal, centred, scope-only start page #}
+<main class="content landing-core">
+  <section class="landing-core-hero">
+    <h1 class="landing-title">New assessment</h1>
+  </section>
+  <section class="panel landing-core-card">
+    <form method="post" action="{{ url_for('web.create') }}" class="form">
+      <input type="hidden" name="name" value="temporary project">
+      <input type="hidden" name="workflow" value="{{ workflows[0].id if workflows else 'example' }}">
+      <label>
+        <span>Scope <em class="muted">(one per line)</em></span>
+        <textarea name="scope" rows="4" placeholder="example.com&#10;10.0.0.0/24" required></textarea>
+      </label>
+      <div class="actions">
+        <button class="btn primary" type="submit">Create</button>
+      </div>
+    </form>
+  </section>
+</main>
+{% endblock %}

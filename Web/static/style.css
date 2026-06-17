@@ -1,0 +1,3278 @@
+/* ============================================================================
+   COLOR CONCEPT — "One blue, one spectrum"
+   ----------------------------------------------------------------------------
+   Brand anchor: #1C9CEC (azure). It is the ONLY interactive blue — links,
+   icons, active/focus states and the primary button. We do NOT introduce a
+   second competing blue; the primary button just uses a darker TONE of the
+   same hue (--accent-2, hover --accent-strong) so the UI reads as one
+   confident blue while the rest of the palette stays multicoloured.
+
+   The multicolour comes from a single MASTER SPECTRUM (--sp-*): nine hues all
+   tuned to a similar chroma so they sit together and every one relates back to
+   the brand blue. All three "multicoloured" surfaces are mapped onto this one
+   spectrum, so they share the exact same colours:
+
+     • Sidebar links / page-header icons  ->  --ic-*  (full nine-hue spread)
+     • Engagement (workflow) types        ->  blue / teal / orange / magenta
+     • Finding severity (ordered scale)   ->  see below
+
+   Severity is the one place colour must read intuitively (cool -> hot):
+     info     = brand blue    (--accent)        neutral, on-brand "FYI"
+     low      = green          (--ok)
+     medium   = amber          (--warn)
+     high     = red            (--bad)
+     critical = magenta/violet (--sp-magenta)    stands APART from high-red on
+                purpose — a dark red reads as "just a darker high" and fails for
+                red-weak colour vision; magenta is the security-tooling norm.
+   Engagement types deliberately avoid amber/red so a "category" never looks
+   like a "severity".
+   ========================================================================== */
+:root,
+:root[data-theme="dark"] {
+  --bg: #0f1115;
+  --bg-2: #0b0d12;
+  --panel: #161a22;
+  --panel-2: #1c212c;
+  --border: #262c38;
+  --border-2: #30384a;
+  --text: #e6e8ee;
+  --muted: #8b93a7;
+  --chip: #232a38;
+  --shadow: 0 1px 0 rgba(255,255,255,0.02), 0 10px 30px rgba(0,0,0,0.35);
+
+  /* Pixel-terminal face for small numeric/structural accents (severity counts,
+     finding IDs, the endpoint-group caret). Theme-independent, so it's defined
+     once here and inherited everywhere — the light theme doesn't redeclare it. */
+  --vt-accent-font: 'VT323', 'Glass TTY VT220', ui-monospace, SFMono-Regular, monospace;
+
+  /* --- Master spectrum: one harmonised wheel feeds everything below --- */
+  --sp-blue:    #1C9CEC;  /* brand · info · web-app */
+  --sp-cyan:    #22D3EE;  /* scope */
+  --sp-teal:    #2DD4BF;  /* workflow · web-service */
+  --sp-green:   #4ADE80;  /* checklist · low */
+  --sp-amber:   #FACC15;  /* findings · medium */
+  --sp-orange:  #FB923C;  /* notes · network-infra */
+  --sp-red:     #F87171;  /* high */
+  --sp-magenta: #D946EF;  /* critical · red-team */
+  --sp-purple:  #A78BFA;  /* projects */
+  --sp-indigo:  #818CF8;  /* endpoints */
+
+  /* --- Brand blue: one hue + a tonal ramp (NOT a second blue) --- */
+  --accent:        var(--sp-blue);  /* base: links, icons, active, focus */
+  --accent-strong: #4DB4F2;         /* hover (lighter tone of the same hue) */
+  --accent-2:      #1683CC;         /* pressed / primary-button depth */
+
+  /* --- Semantic severity (the only ordered scale) --- */
+  --ok:   var(--sp-green);   /* low */
+  --warn: var(--sp-amber);   /* medium */
+  --bad:  var(--sp-red);     /* high  (info = --accent, critical = --sp-magenta) */
+
+  /* --- Per-section identity colours (sidebar icons + page headers) --- */
+  --ic-projects:  var(--sp-purple);
+  --ic-scope:     var(--sp-cyan);
+  --ic-workflow:  var(--sp-teal);
+  --ic-checklist: var(--sp-green);
+  --ic-endpoints: var(--sp-indigo);
+  --ic-notes:     var(--sp-orange);
+  --ic-findings:  var(--sp-amber);
+}
+
+:root[data-theme="light"] {
+  --bg: #f5f7fb;
+  --bg-2: #eef1f7;
+  --panel: #ffffff;
+  --panel-2: #f3f5fa;
+  --border: #e2e6ef;
+  --border-2: #ced3de;
+  --text: #1a1f2a;
+  --muted: #6b7388;
+  --chip: #eef1f7;
+  --shadow: 0 1px 0 rgba(0,0,0,0.02), 0 10px 30px rgba(30,40,70,0.08);
+
+  /* Same hues as dark, deepened for contrast on white. Brand blue is held
+     constant in both themes so the identity colour never shifts. */
+  --sp-blue:    #1C9CEC;
+  --sp-cyan:    #0891B2;
+  --sp-teal:    #0D9488;
+  --sp-green:   #16A34A;
+  --sp-amber:   #CA8A04;
+  --sp-orange:  #EA580C;
+  --sp-red:     #DC2626;
+  --sp-magenta: #C026D3;
+  --sp-purple:  #7C3AED;
+  --sp-indigo:  #4F46E5;
+
+  --accent:        var(--sp-blue);
+  --accent-strong: #157FC4;
+  --accent-2:      #0E6FA8;
+
+  --ok:   var(--sp-green);
+  --warn: var(--sp-amber);
+  --bad:  var(--sp-red);
+
+  --ic-projects:  var(--sp-purple);
+  --ic-scope:     var(--sp-cyan);
+  --ic-workflow:  var(--sp-teal);
+  --ic-checklist: var(--sp-green);
+  --ic-endpoints: var(--sp-indigo);
+  --ic-notes:     var(--sp-orange);
+  --ic-findings:  var(--sp-amber);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+/* Always reserve the vertical scrollbar gutter so pages that fit the viewport
+   (e.g. Findings with few rows) line up identically to pages that scroll —
+   without this the gutter appears/disappears between pages and the whole
+   layout (content + sticky sidebar/phase bar) jumps on navigation. */
+html { scrollbar-gutter: stable; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* All custom fonts are bundled locally under static/fonts so the app runs fully
+   offline — no Google Fonts / CDN requests. woff2 files are the latin subset
+   pulled from Google Fonts; Glass TTY VT220 is a faithful recreation of the DEC
+   VT220 terminal ROM (early 1980s), used for the brand wordmark. Browsers only
+   fetch a face once a rule actually uses it, so this stays lazy. */
+@font-face {
+  font-family: 'Glass TTY VT220';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/glasstty-vt220.ttf") format("truetype");
+}
+@font-face {
+  font-family: 'VT323';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/vt323-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: 'Pirata One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/pirataone-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: 'Rye';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/rye-latin.woff2") format("woff2");
+}
+
+/* Fun fonts tied to the alternate UI languages. The font is exposed via
+   --display-font and applied only to display-y surfaces (headings, labels,
+   buttons, badges) — forms, tables, and code stay in the system sans so
+   the UI remains readable in dense areas. */
+:root[data-ui-style="pirate"] {
+  --display-font: 'Pirata One', 'IM Fell English', Georgia, serif;
+  --display-tracking: 0.4px;
+}
+:root[data-ui-style="bandit"] {
+  --display-font: 'Rye', 'Smokum', 'Georgia', serif;
+  --display-tracking: 0.2px;
+}
+:root[data-ui-style="pirate"] :is(
+  h1, h2, h3, h4,
+  .project-name,
+  .phase-label,
+  .sidebar-info-title,
+  .sidebar nav a > span,
+  .sidebar-api-link > span,
+  .workflow-type-badge,
+  .theme-toggle,
+  .btn,
+  .floating-controls button
+),
+:root[data-ui-style="bandit"] :is(
+  h1, h2, h3, h4,
+  .project-name,
+  .phase-label,
+  .sidebar-info-title,
+  .sidebar nav a > span,
+  .sidebar-api-link > span,
+  .workflow-type-badge,
+  .theme-toggle,
+  .btn,
+  .floating-controls button
+) {
+  font-family: var(--display-font);
+  letter-spacing: var(--display-tracking);
+  font-weight: 400;
+}
+/* Pirata One has narrow strokes and reads noticeably smaller than the
+   system sans at the same px size — bump every targeted surface so the
+   glyphs stay legible. */
+:root[data-ui-style="pirate"] .project-name        { font-size: 22px; letter-spacing: 0.6px; }
+:root[data-ui-style="pirate"] .sidebar nav a > span { font-size: 17px; }
+:root[data-ui-style="pirate"] .sidebar-api-link > span { font-size: 15px; }
+:root[data-ui-style="pirate"] .sidebar-info-title  { font-size: 14px; }
+:root[data-ui-style="pirate"] .phase-label         { font-size: 15px; }
+:root[data-ui-style="pirate"] .workflow-type-badge { font-size: 13px; }
+:root[data-ui-style="pirate"] .theme-toggle,
+:root[data-ui-style="pirate"] .floating-controls button { font-size: 15px; }
+:root[data-ui-style="pirate"] .btn                 { font-size: 15px; }
+:root[data-ui-style="pirate"] .btn.small           { font-size: 13.5px; }
+:root[data-ui-style="pirate"] h1 { font-size: 1.5em; }
+:root[data-ui-style="pirate"] h2 { font-size: 1.3em; }
+:root[data-ui-style="pirate"] h3 { font-size: 1.18em; }
+:root[data-ui-style="pirate"] h4 { font-size: 1.08em; }
+/* Rye is a wood-type face — at small sizes the carved edges blur. Give it
+   a touch more room. */
+:root[data-ui-style="bandit"] .project-name { font-size: 17px; }
+:root[data-ui-style="bandit"] .sidebar nav a > span { font-size: 14.5px; }
+:root[data-ui-style="bandit"] .phase-label { font-size: 13px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+.small { font-size: 11px; }
+.muted { color: var(--muted); }
+
+/* ---------- Theme toggle ---------- */
+.theme-toggle {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow);
+}
+.floating-controls {
+  position: fixed;
+  /* Vertically centered on the phase bar's breadcrumb row, matching .brand. */
+  top: 16px;
+  right: 12px;
+  z-index: 80;
+  display: flex;
+  gap: 8px;
+}
+.brand {
+  position: fixed;
+  /* Bare floating mark (no chip) sitting directly on the background. Spans the
+     sidebar column (16px left edge + 240px track) and centres its logo+name
+     inside it, so the brand is centred over the floating sidebar below. Fills
+     the phase bar's height and centres vertically on the breadcrumb line. */
+  top: 28px;
+  left: 16px;
+  width: 240px;
+  height: 66px;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text);
+  pointer-events: none;
+}
+.brand-logo {
+  width: 64px;
+  height: 64px;
+  display: block;
+  object-fit: contain;
+}
+.brand-name {
+  font-family: 'Glass TTY VT220', 'VT323', ui-monospace, Consolas, monospace;
+  font-weight: 400;
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text);
+  /* The VT220 ROM glyphs are hairline-thin, so they render faint. Fatten the
+     strokes with a matching outline (plus a hair of glow) so the wordmark reads
+     solid in both themes. */
+  -webkit-text-stroke: 0.6px var(--text);
+  text-shadow: 0 0 0.6px var(--text);
+}
+@media (max-width: 600px) { .brand-name { display: none; } }
+
+.style-toggle { min-width: 92px; }
+.theme-toggle:hover { color: var(--text); border-color: var(--accent); }
+.theme-toggle .icon-moon { display: none; }
+:root[data-theme="light"] .theme-toggle .icon-sun { display: none; }
+:root[data-theme="light"] .theme-toggle .icon-moon { display: inline-block; }
+
+.body-wrap { padding: 0; }
+main.content { padding: 24px 28px; max-width: 1100px; margin: 0 auto; }
+/* Inside the project layout every page fills the same wide column and starts at
+   the left, so headers and panels line up consistently across pages (the
+   centered home/landing page keeps the narrower default above). */
+.layout main.content { max-width: 1500px; width: 100%; min-width: 0; }
+main.content.scope-content { max-width: 1500px; width: 100%; }
+main.content.endpoints-content,
+.layout main.content.endpoints-content {
+  max-width: 1500px;
+  width: 100%;
+  min-width: 0;
+}
+main.content.findings-content { max-width: 1500px; width: 100%; }
+main.content.checklist-content { max-width: 1500px; width: 100%; }
+main.content.projects-content { max-width: 1500px; width: 100%; }
+
+/* Page header: the current section's identity icon (in colour) + its title.
+   A thin top rule in the section's identity colour gives each page a quiet sense
+   of place — Findings reads amber, Scope cyan — without colouring the whole UI. */
+.page-header {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0 0 20px;
+  position: relative;
+}
+/* The rule floats just below the header (in its bottom margin) so it adds no
+   layout height — the title and the panels below stay at their original
+   position and keep lining up with the sidebar card. */
+.page-header::before {
+  content: "";
+  position: absolute;
+  bottom: -10px; left: 0;
+  width: 100%;
+  height: 1px;
+  border-radius: 1px;
+  background: var(--page-accent, var(--border));
+}
+/* Progress readout: a small segmented LED meter that fills with the test's
+   progress, plus the percentage, pinned to the right edge on the title's line.
+   Empty cells are a faint version of the section colour; filled cells are the
+   full section colour. The slight skew echoes a vintage equalizer's bars. */
+.page-progress {
+  margin-left: auto;
+  align-self: flex-end;
+  margin-bottom: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.page-progress-meter { display: inline-flex; gap: 2px; align-items: center; }
+.page-progress-seg {
+  width: 4px;
+  height: 11px;
+  background: var(--page-accent, var(--border));
+  opacity: 0.2;
+  transform: skewX(-12deg);
+}
+.page-progress-seg.on { opacity: 1; }
+.page-progress-pct {
+  font-family: var(--vt-accent-font);
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  color: var(--page-accent, var(--muted));
+}
+.page-header-icon { display: inline-flex; flex: 0 0 auto; }
+.page-header-icon svg { width: 26px; height: 26px; }
+.page-header-title { margin: 0; font-size: 22px; line-height: 1.1; }
+.page-header-subtitle { color: var(--muted); font-size: 13px; align-self: flex-end; margin-bottom: 1px; }
+.page-header-projects  { --page-accent: var(--ic-projects); }
+.page-header-scope     { --page-accent: var(--ic-scope); }
+.page-header-workflow  { --page-accent: var(--ic-workflow); }
+.page-header-checklist { --page-accent: var(--ic-checklist); }
+.page-header-endpoints { --page-accent: var(--ic-endpoints); }
+.page-header-notes     { --page-accent: var(--ic-notes); }
+.page-header-findings  { --page-accent: var(--ic-findings); }
+.page-header-projects  .page-header-icon { color: var(--ic-projects); }
+.page-header-scope     .page-header-icon { color: var(--ic-scope); }
+.page-header-workflow  .page-header-icon { color: var(--ic-workflow); }
+.page-header-checklist .page-header-icon { color: var(--ic-checklist); }
+.page-header-endpoints .page-header-icon { color: var(--ic-endpoints); }
+.page-header-notes     .page-header-icon { color: var(--ic-notes); }
+.page-header-findings  .page-header-icon { color: var(--ic-findings); }
+
+/* Pixel-terminal accents: counts, IDs and the section subtitle render in the
+   VT face so numbers read like a readout rather than body text. Scoped to small
+   non-prose surfaces only — forms, tables and labels stay in the system sans. */
+.sev-stat-num,
+.page-header-subtitle,
+.finding-sub span:not(.finding-sev) {
+  font-family: var(--vt-accent-font);
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+/* ---------- Landing ---------- */
+/* The brand mark (logo + wordmark) floats fixed in the top-left from base.html.
+   Pad the start page down so its content clears it instead of overlapping.
+   Minimal, centred start page with one clean card below the brand. */
+main.content.landing-core { max-width: 560px; padding-top: 96px; }
+.landing-core-hero { text-align: center; margin: 8px 0 24px; }
+
+/* Plain page title on the start page (deliberately not the VT220 wordmark font). */
+.landing-title { margin: 0; font-size: 26px; font-weight: 600; line-height: 1.2; }
+
+/* ---------- Flash ---------- */
+.flash-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+}
+.flash-popup {
+  width: 100%;
+  max-width: 480px;
+  background: var(--panel);
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  padding: 16px 18px;
+}
+.flash-popup-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border-2);
+}
+.flash-popup-icon { color: var(--bad); flex: none; }
+.flash-popup-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  flex: 1 1 auto;
+}
+.flash-popup-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 4px 9px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.flash-popup-copy:hover { color: var(--text); border-color: var(--accent); }
+.flash-popup-copy.is-copied { color: var(--accent); border-color: var(--accent); }
+.flash-popup-body {
+  margin: 0;
+  max-height: 50vh;
+  overflow: auto;
+  padding: 12px 14px;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+}
+.flash-popup-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+
+/* ---------- Phase bar ---------- */
+.phase-bar {
+  /* Same colour as the page so there's no bar and no seam line — just a floating
+     pill of breadcrumbs sitting on the continuous background, matching the
+     floating sidebar. Stays opaque so content scrolls cleanly behind it.
+     overflow must stay visible: clipping it shears the pill's drop-shadow into a
+     hard horizontal line at the bar's bottom edge. The pill caps its own width
+     and scrolls internally, so nothing leaks horizontally. */
+  position: sticky; top: 0; z-index: 40;
+  background: var(--bg);
+  padding: 8px 24px;
+  overflow: visible;
+}
+.phase-bar-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 6px;
+  /* A self-contained pill: hugs the breadcrumbs, centred, capped so it always
+     leaves room for the floating brand (left) and controls (right). When the
+     phases overflow the cap the row scrolls inside the pill. */
+  width: max-content;
+  max-width: min(760px, calc(100% - 400px));
+  margin: 0 auto;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 3px 9px rgba(0, 0, 0, 0.11),
+    0 1px 3px rgba(0, 0, 0, 0.07);
+  padding: 5px 12px;
+}
+@media (max-width: 600px) {
+  /* The brand name hides at this width, so the pill can reclaim the side room. */
+  .phase-bar-row { max-width: calc(100% - 230px); }
+}
+.phase-bar-inner {
+  display: flex; align-items: center; gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+  min-width: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scrollbar-color: transparent transparent;
+  scroll-behavior: smooth;
+}
+.phase-bar-inner::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.phase-scroll {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.15s, color 0.15s;
+}
+.phase-scroll:hover {
+  color: var(--muted);
+  background: transparent;
+  opacity: 0.8;
+}
+.phase-scroll[hidden] {
+  display: inline-flex;
+  visibility: hidden;
+  pointer-events: none;
+}
+.phase-step {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  color: var(--muted);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+.phase-step:hover { color: var(--text); text-decoration: none; }
+.phase-step:hover .phase-marker { border-color: var(--accent); }
+.phase-marker {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  color: var(--muted);
+  transition: box-shadow 0.3s, background 0.3s, border-color 0.3s;
+}
+.phase-label { font-size: 12.5px; font-weight: 500; }
+
+/* Per-phase icon colors (future state) */
+.phase-step[data-phase="scope_definition"] .phase-marker { color: #a78bfa; }
+.phase-step[data-phase="reachability"] .phase-marker    { color: #38bdf8; }
+.phase-step[data-phase="initial_recon"] .phase-marker   { color: #22d3ee; }
+.phase-step[data-phase="recon"] .phase-marker           { color: #14b8a6; }
+.phase-step[data-phase="target_insights"] .phase-marker { color: #2dd4bf; }
+.phase-step[data-phase="modify_checklist"] .phase-marker { color: #a3e635; }
+.phase-step[data-phase="general_checks"] .phase-marker  { color: #84cc16; }
+.phase-step[data-phase="specific_checks"] .phase-marker { color: #f59e0b; }
+.phase-step[data-phase="free_testing"] .phase-marker    { color: #ec4899; }
+.phase-step[data-phase="attack_chaining"] .phase-marker { color: #fb7185; }
+.phase-step[data-phase="finishing_up"] .phase-marker    { color: #ef4444; }
+
+.phase-step.done { color: var(--ok); }
+.phase-step.done .phase-marker {
+  background: rgba(74,222,128,0.15);
+  border-color: rgba(74,222,128,0.5);
+  color: var(--ok);
+}
+.phase-step.active { color: var(--text); background: var(--chip); }
+.phase-step.active .phase-marker {
+  background: var(--panel);
+  border-color: currentColor;
+  animation: phase-pulse 2.4s ease-in-out infinite;
+}
+.phase-step.future { opacity: 0.75; }
+.phase-step.modify { color: #f59e0b; }
+.phase-step.modify .phase-marker {
+  background: rgba(245,158,11,0.12);
+  border-color: rgba(245,158,11,0.55);
+  color: #f59e0b;
+  animation: phase-pulse-modify 2.4s ease-in-out infinite;
+}
+
+@keyframes phase-pulse-modify {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245,158,11,0.0);
+    filter: drop-shadow(0 0 0px #f59e0b);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(245,158,11,0.22), 0 0 18px 2px rgba(245,158,11,0.45);
+    filter: drop-shadow(0 0 6px #f59e0b);
+  }
+}
+
+@keyframes phase-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(28,156,236,0.0), 0 0 0 0 rgba(28,156,236,0.0);
+    filter: drop-shadow(0 0 0px currentColor);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(28,156,236,0.18), 0 0 18px 2px rgba(28,156,236,0.35);
+    filter: drop-shadow(0 0 6px currentColor);
+  }
+}
+
+.phase-connector {
+  flex: 0 0 20px; height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+}
+.phase-connector.done { background: rgba(74,222,128,0.55); }
+
+/* ---------- Layout ---------- */
+/* One continuous page background runs the full width; the sidebar is no longer a
+   full-bleed strip with a seam line but a card that floats on top of it. The
+   left padding + column gap give the card air on every side so it reads as
+   raised, while the content column stays put in the centre. */
+.layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  column-gap: 14px;
+  width: 100%;
+  align-items: start;
+  padding-left: 16px;
+}
+@media (max-width: 820px) {
+  .layout { grid-template-columns: 1fr; padding-left: 0; }
+  .sidebar {
+    position: static;
+    height: auto;
+    min-height: auto;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+    border: none !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+}
+
+.sidebar {
+  position: sticky;
+  /* At rest the card's top lines up with the first content panel: the content
+     column sits 66px below the phase bar, then adds 24px padding + the page
+     header (~26px) + its 20px gap = the first panel at ~136px. The 70px top
+     margin drops the card to meet it. The pin point (top) is set to that same
+     136px, so when you scroll the card pins exactly where it already sits and
+     never shifts up — it stays fixed and aligned with the first panel. Height
+     is sized so the card bottom rests ~16px off the viewport floor. */
+  top: 136px;
+  align-self: start;
+  margin: 70px 0 16px;
+  border: 1px solid var(--border-2);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 6px 16px rgba(0, 0, 0, 0.13),
+    0 1px 4px rgba(0, 0, 0, 0.08);
+  min-height: calc(100vh - 152px);
+  height: calc(100vh - 152px);
+  overflow: visible;
+  padding: 20px 14px;
+  display: flex; flex-direction: column; gap: 14px;
+  z-index: 0;
+}
+/* Faint CRT scanlines over the WHOLE sidebar card — a phosphor texture behind
+   every surface. The layer sits above the panel fill but below the content
+   (z-index 0 vs the sections' z-index 1), so text and boxes stay crisp on top.
+   Per-theme so the lines read on both dark and light panels. */
+.sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.04) 0px,
+    rgba(255, 255, 255, 0.04) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+:root[data-theme="light"] .sidebar::before {
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(30, 40, 70, 0.055) 0px,
+    rgba(30, 40, 70, 0.055) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+/* Lift every section above the scanline layer. Transparent areas (the head's
+   gaps, the nav gutters) let the texture show through; the nav links carry an
+   opaque panel fill (below) so the lines don't run under the link labels. */
+.sidebar-head,
+.sidebar > nav,
+.sidebar-foot { position: relative; z-index: 1; }
+@media (max-width: 820px) { .sidebar::before { display: none; } }
+.sidebar-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.sidebar-head .project-name { font-weight: 700; font-size: 15px; color: var(--text); overflow-wrap: anywhere; }
+.sidebar-info-box {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: left;
+}
+.sidebar-info-title {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.sidebar-scope-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sidebar-scope-list code {
+  display: block;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.sidebar nav { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+.sidebar nav a {
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
+  padding: 8px 14px; border-radius: 8px;
+  color: var(--muted); font-size: 13.5px; font-weight: 500;
+  text-align: left;
+  width: 168px;
+  position: relative;
+  overflow: hidden;
+  /* Opaque fill so the card's scanlines don't run under the label; only the
+     gutters left and right of the centred link stay textured, so each link
+     reads as embedded in the scanlines. */
+  background: var(--panel);
+}
+.sidebar nav a > svg,
+.sidebar nav a > span { position: relative; z-index: 1; }
+.sidebar nav a > svg { flex: 0 0 auto; }
+/* Each link has an identity color exposed via --link-icon. Icons sit at
+   --muted by default so the column reads as calm and neutral, and only
+   light up to their identity color on hover or when the link is the
+   current page (.active). */
+.sidebar nav a                     { --link-icon: var(--accent); }
+.sidebar nav a[href$="/projects"]  { --link-icon: var(--ic-projects); }
+.sidebar nav a[href$="/scope"]     { --link-icon: var(--ic-scope); }
+.sidebar nav a[href$="/workflow"]  { --link-icon: var(--ic-workflow); }
+.sidebar nav a[href$="/checklist"] { --link-icon: var(--ic-checklist); }
+.sidebar nav a[href$="/endpoints"] { --link-icon: var(--ic-endpoints); }
+.sidebar nav a[href$="/notes"]     { --link-icon: var(--ic-notes); }
+.sidebar nav a[href$="/findings"]  { --link-icon: var(--ic-findings); }
+
+.sidebar nav a svg { color: var(--muted); transition: color 0.15s ease; }
+/* The checklist/endpoints links each carry a small texture patch on the
+   right — a hint of the page's visual identity rather than a full row
+   background. The patch lives in ::after, is fade-masked into the link
+   so it dissolves softly toward the label, and lifts on hover/active. */
+.sidebar nav a[href$="/checklist"]::after,
+.sidebar nav a[href$="/endpoints"]::after {
+  content: "";
+  position: absolute;
+  top: 6px; bottom: 6px; right: 8px;
+  width: 44px;
+  border-radius: 6px;
+  opacity: 0.6;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to left, #000 55%, transparent);
+          mask-image: linear-gradient(to left, #000 55%, transparent);
+  transition: opacity 0.15s ease;
+}
+.sidebar nav a[href$="/checklist"]::after {
+  background-image:
+    linear-gradient(135deg, rgba(255,255,255,0.18) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.18) 75%, transparent 75%);
+  background-size: 8px 8px;
+}
+:root[data-theme="light"] .sidebar nav a[href$="/checklist"]::after {
+  background-image:
+    linear-gradient(135deg, rgba(30,40,70,0.22) 25%, transparent 25%, transparent 50%, rgba(30,40,70,0.22) 50%, rgba(30,40,70,0.22) 75%, transparent 75%);
+}
+.sidebar nav a[href$="/endpoints"]::after {
+  background-image: radial-gradient(rgba(255,255,255,0.32) 1px, transparent 1px);
+  background-size: 7px 7px;
+}
+:root[data-theme="light"] .sidebar nav a[href$="/endpoints"]::after {
+  background-image: radial-gradient(rgba(30,40,70,0.40) 1px, transparent 1px);
+}
+.sidebar nav a[href$="/checklist"]:hover::after,
+.sidebar nav a[href$="/checklist"].active::after,
+.sidebar nav a[href$="/endpoints"]:hover::after,
+.sidebar nav a[href$="/endpoints"].active::after {
+  opacity: 0.95;
+}
+
+/* Tiny triangle indicator before the current page. Lives in the link's left
+   padding so it doesn't push the icon over, and uses the link's identity
+   color so the arrow inherits whatever palette tone the link carries. */
+.sidebar nav a.active::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 4px 0 4px 6px;
+  border-color: transparent transparent transparent var(--link-icon);
+  z-index: 1;
+}
+.sidebar nav a:hover { color: var(--text); background: var(--panel-2); text-decoration: none; }
+.sidebar nav a:hover svg { color: var(--link-icon); }
+.sidebar nav a.active { background: var(--chip); color: var(--text); }
+.sidebar nav a.active svg { color: var(--link-icon); }
+.sidebar-foot {
+  margin-top: auto;
+  width: 100%;
+}
+.sidebar-api-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sidebar-api-link:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  text-decoration: none;
+}
+.sidebar-copy-btn {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.sidebar-copy-btn span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.sidebar-copy-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.sidebar-copy-btn.copied {
+  color: var(--ok);
+  border-color: rgba(74,222,128,0.5);
+  background: rgba(74,222,128,0.10);
+}
+@media (max-width: 820px) {
+  .sidebar {
+    position: static;
+    height: auto;
+    min-height: auto;
+  }
+}
+
+/* ---------- Findings page ---------- */
+.findings-summary {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 22px;
+}
+@media (max-width: 820px) { .findings-summary { grid-template-columns: repeat(2, 1fr); } }
+.sev-stat {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-2);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 6px;
+  position: relative;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.sev-stat:hover { transform: translateY(-2px); }
+.sev-stat-icon { position: absolute; top: 14px; right: 14px; opacity: 0.85; }
+.sev-stat-num { font-size: 36px; font-weight: 700; line-height: 1; }
+.sev-stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; }
+
+.sev-stat.severity-critical { border-left-color: #d946ef; color: #d946ef; }
+.sev-stat.severity-critical .sev-stat-num { color: #d946ef; }
+.sev-stat.severity-high { border-left-color: var(--bad); color: var(--bad); }
+.sev-stat.severity-high .sev-stat-num { color: var(--bad); }
+.sev-stat.severity-medium { border-left-color: var(--warn); color: var(--warn); }
+.sev-stat.severity-medium .sev-stat-num { color: var(--warn); }
+.sev-stat.severity-low { border-left-color: var(--ok); color: var(--ok); }
+.sev-stat.severity-low .sev-stat-num { color: var(--ok); }
+.sev-stat.severity-info { border-left-color: var(--accent); color: var(--accent); }
+.sev-stat.severity-info .sev-stat-num { color: var(--accent); }
+.sev-stat-label { color: var(--muted); }
+
+/* Click a count panel to filter findings to that risk. The active panel lights
+   up its full border and takes the same diagonal "shift stripes" texture the
+   sidebar uses, tinted with the severity's own colour (currentColor). */
+.sev-stat { cursor: pointer; }
+.sev-stat .sev-stat-num,
+.sev-stat .sev-stat-label { position: relative; z-index: 1; }
+.sev-stat .sev-stat-icon { z-index: 1; }
+.sev-stat.filtered { border-color: currentColor; }
+.sev-stat.filtered::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: linear-gradient(135deg, currentColor 25%, transparent 25%, transparent 50%, currentColor 50%, currentColor 75%, transparent 75%);
+  background-size: 8px 8px;
+  opacity: 0.14;
+}
+
+/* Export dropdown — a relative anchor inside the bottom-right .floating-advance bar. */
+.floating-export {
+  position: relative;
+}
+.floating-export-btn {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  padding: 12px 20px;
+  border-radius: 999px;
+}
+.floating-export-menu[hidden] { display: none; }
+.floating-export-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  gap: 2px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+.floating-export-menu a {
+  padding: 8px 12px;
+  border-radius: 7px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+  transition: background 0.12s;
+}
+.floating-export-menu a:hover { background: var(--panel-2); }
+
+/* Delete-finding control sits in the bottom-right corner of the open card. */
+.finding-delete-form { margin-top: 10px; display: flex; justify-content: flex-end; }
+/* Delete-endpoint control sits on the state-machine row, to its right, matching
+   the state machine's height. The checks panel below stays full width. */
+.endpoint-fsm-row { display: flex; align-items: stretch; gap: 10px; margin: 0 0 14px; }
+.endpoint-fsm-row > .endpoint-fsm { flex: 1 1 auto; min-width: 0; margin: 0; }
+.endpoint-fsm-row > .endpoint-delete-form { flex: 0 0 auto; margin: 0; display: flex; }
+.endpoint-fsm-row > .endpoint-delete-form > .btn { height: 100%; }
+
+/* Create panel - bigger, visual accent */
+.finding-create-panel { padding: 24px 28px; }
+.finding-create-panel .panel-head h1 { font-size: 22px; color: var(--text); display: inline-flex; align-items: center; }
+.finding-form-grid {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 820px) { .finding-form-grid { grid-template-columns: 1fr; } }
+.severity-select { font-weight: 600; text-transform: capitalize; }
+
+/* Finding cards */
+.findings-cards { display: flex; flex-direction: column; gap: 14px; }
+.finding-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-2);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.finding-card:hover { transform: translateY(-1px); }
+.finding-card[open] { border-color: var(--border-2); }
+
+.finding-card summary {
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px 22px; cursor: pointer; list-style: none;
+}
+.finding-card summary::-webkit-details-marker { display: none; }
+.finding-sev-icon {
+  width: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 12px;
+  background: var(--panel-2);
+  flex: 0 0 auto;
+}
+.finding-head-main { flex: 1 1 auto; min-width: 0; }
+.finding-title-big {
+  font-weight: 600; font-size: 16px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.finding-sub { display: inline-flex; gap: 10px; align-items: center; margin-top: 4px; }
+.finding-sev {
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--chip);
+  color: var(--muted);
+  font-weight: 700;
+}
+.finding-expand { flex: 0 0 auto; color: var(--muted); }
+
+/* Severity accents */
+.finding-card.severity-critical { border-left-color: #d946ef; }
+.finding-card.severity-critical .finding-sev-icon { background: rgba(217,70,239,0.14); color: #d946ef; }
+.finding-card.severity-critical .finding-sev { background: rgba(217,70,239,0.18); color: #d946ef; }
+.finding-card.severity-high { border-left-color: var(--bad); }
+.finding-card.severity-high .finding-sev-icon { background: rgba(248,113,113,0.14); color: var(--bad); }
+.finding-card.severity-high .finding-sev { background: rgba(248,113,113,0.18); color: var(--bad); }
+.finding-card.severity-medium { border-left-color: var(--warn); }
+.finding-card.severity-medium .finding-sev-icon { background: rgba(250,204,21,0.14); color: var(--warn); }
+.finding-card.severity-medium .finding-sev { background: rgba(250,204,21,0.18); color: var(--warn); }
+.finding-card.severity-low { border-left-color: var(--ok); }
+.finding-card.severity-low .finding-sev-icon { background: rgba(74,222,128,0.14); color: var(--ok); }
+.finding-card.severity-low .finding-sev { background: rgba(74,222,128,0.15); color: var(--ok); }
+.finding-card.severity-info { border-left-color: var(--accent); }
+.finding-card.severity-info .finding-sev-icon { background: rgba(28,156,236,0.14); color: var(--accent); }
+.finding-card.severity-info .finding-sev { background: rgba(28,156,236,0.15); color: var(--accent); }
+
+.finding-body { border-top: 1px solid var(--border); padding: 20px 22px; }
+.finding-description {
+  background: var(--panel-2);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  white-space: pre-wrap;
+  font-size: 13px;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.actions-split { justify-content: flex-start; }
+
+/* ---------- Workflow type badges ---------- */
+.workflow-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+  white-space: nowrap;
+}
+.workflow-type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Engagement types pull four well-separated hues from the master spectrum:
+   blue (web-app) · teal (web-service) · orange (network) · magenta (red-team).
+   They avoid amber/red so a category never looks like a finding severity. */
+.workflow-type-web_application {
+  color: var(--sp-blue);
+  border-color: rgba(28,156,236,0.45);
+  background: rgba(28,156,236,0.11);
+}
+.workflow-type-web_service {
+  color: var(--sp-teal);
+  border-color: rgba(45,212,191,0.46);
+  background: rgba(45,212,191,0.12);
+}
+.workflow-type-network_infrastructure {
+  color: var(--sp-orange);
+  border-color: rgba(251,146,60,0.48);
+  background: rgba(251,146,60,0.12);
+}
+.workflow-type-web_application_red_team {
+  color: var(--sp-magenta);
+  border-color: rgba(217,70,239,0.48);
+  background: rgba(217,70,239,0.12);
+}
+.workflow-type-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.workflow-type-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+  min-width: 200px;
+}
+.workflow-type-card-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+.workflow-type-card-meta code {
+  color: var(--text);
+}
+.workflow-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.floating-advance {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1000;
+  margin: 0;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.floating-advance .next-action { position: relative; }
+.floating-advance .next-action-pop {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  max-width: 260px;
+  width: max-content;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: normal;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+}
+.floating-advance .next-action-pop.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.floating-advance .btn.primary,
+.floating-advance .floating-save-btn,
+.floating-advance .agent-advance-switch {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 999px;
+}
+.floating-advance .btn.primary:disabled {
+  opacity: 0.7;
+}
+.floating-advance .advance-access-form { margin: 0; }
+
+/* Agent-advance toggle: same pill chrome as the action buttons, but an
+   embedded track + knob makes it unmistakably a switch. */
+.floating-advance .agent-advance-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.floating-advance .agent-advance-switch:hover { border-color: var(--accent); }
+.floating-advance .agent-advance-switch-label {
+  line-height: 1;
+  white-space: nowrap;
+}
+.floating-advance .agent-advance-switch-track {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--border-2);
+  transition: background 0.15s;
+}
+.floating-advance .agent-advance-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s;
+}
+.floating-advance .agent-advance-switch.on {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.floating-advance .agent-advance-switch.on .agent-advance-switch-track {
+  background: var(--accent-2);
+}
+.floating-advance .agent-advance-switch.on .agent-advance-switch-knob {
+  transform: translateX(16px);
+}
+
+.findings-empty-panel { padding: 40px; text-align: center; }
+.findings-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--muted); }
+.findings-empty h2 { margin: 0; font-size: 18px; color: var(--text); text-transform: none; letter-spacing: 0; }
+
+/* ---------- Inline forms (checklist/workflow row editors) ---------- */
+.inline-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.inline-form input[type=text] { min-width: 160px; }
+.inline-form textarea.step-notes {
+  min-width: 220px;
+  min-height: 32px;
+  height: 32px;
+  padding: 6px 8px;
+  resize: both;
+  overflow: auto;
+  font-family: inherit;
+  line-height: 1.3;
+}
+.inline-form textarea.step-notes-full {
+  min-width: 220px;
+  min-height: 72px;
+  padding: 6px 8px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.3;
+}
+.icon-btn { padding: 6px 8px; display: inline-flex; align-items: center; justify-content: center; }
+.icon-btn svg { display: block; }
+.evidence-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
+/* ---------- Panels ---------- */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow);
+}
+.panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; }
+.panel h1 { margin: 0; font-size: 20px; }
+.panel h2 { margin: 0 0 12px; font-size: 13px; color: var(--muted); font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
+.panel h3 { margin: 20px 0 10px; font-size: 14px; font-weight: 600; }
+
+.opdoc-list { list-style: none; margin: 0; padding: 0; }
+.opdoc-row { display: grid; grid-template-columns: 120px minmax(200px, 1fr) 1.6fr; gap: 14px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--border); }
+.opdoc-row:first-child { border-top: none; }
+.opdoc-methods { display: flex; gap: 4px; flex-wrap: wrap; }
+.opdoc-method { font-weight: 700; }
+.opdoc-action { color: var(--accent); }
+.opdoc-path { font-size: 12px; word-break: break-all; }
+.opdoc-desc { font-size: 12px; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* ---------- Forms ---------- */
+.form { display: flex; flex-direction: column; gap: 14px; }
+.form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+input[type=text], textarea, select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input[type=text]:focus, textarea:focus, select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(28,156,236,0.18);
+}
+textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* ---------- Markdown notes editor (syntax-highlight overlay) ----------
+   A transparent-text <textarea> sits on top of a backdrop that renders the
+   same text with light syntax colouring. Both layers share identical font,
+   padding and line-height so the caret lines up with the highlighted glyphs.
+   We only ever change COLOUR — never weight or size — so the two layers keep
+   the exact same metrics and wrap identically (bold/larger glyphs would drift
+   the caret off the text). */
+.md-editor { position: relative; width: 100%; }
+.md-editor .md-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  box-sizing: border-box;
+  background: var(--panel-2);
+  pointer-events: none;
+  z-index: 0;
+}
+.md-editor .md-highlights {
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.md-editor textarea.md-input {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  resize: vertical;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+/* Shared text metrics — these MUST match between the two layers exactly. */
+.md-editor textarea.md-input,
+.md-editor .md-highlights {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: normal;
+  tab-size: 4;
+}
+.md-editor textarea.md-input::selection { background: rgba(28,156,236,0.30); }
+
+/* Token styling. Bold + italic keep the same advance width in a monospace
+   font, so they never shift the caret. FONT-SIZE does (the textarea underneath
+   is a single fixed size), so the larger headings — and the lines below them —
+   drift a little out of caret-alignment: an accepted trade for legibility. */
+.md-head         { font-weight: 700; color: var(--accent); }
+.md-head-marker  { font-weight: 700; color: var(--muted); }
+/* Size + colour step down by level so #, ##, ### read as a clear hierarchy. */
+.md-head.md-h1, .md-head-marker.md-h1 { font-size: 1.35em; }
+.md-head.md-h2, .md-head-marker.md-h2 { font-size: 1.15em; }
+.md-head.md-h1   { color: var(--accent); }
+.md-head.md-h2   { color: var(--sp-teal); }
+.md-head.md-h3   { color: var(--sp-purple); }
+.md-head.md-h4,
+.md-head.md-h5,
+.md-head.md-h6   { color: var(--muted); }
+.md-list-marker  { color: var(--sp-orange); }
+.md-quote-marker { color: var(--sp-teal); }
+.md-quote        { color: var(--muted); }
+.md-bold         { font-weight: 700; color: var(--sp-amber); }
+.md-italic       { font-style: italic; color: var(--sp-purple); }
+.md-code         { color: var(--sp-teal); }
+.md-hr           { color: var(--sp-orange); }
+
+.form .actions { display: flex; gap: 8px; }
+.inline { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.inline input[type=text] { min-width: 180px; }
+.check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+
+/* ---------- Buttons ---------- */
+.btn {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: border-color 0.15s, background 0.15s;
+}
+.btn:hover { border-color: var(--accent); text-decoration: none; }
+.btn.primary { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+.btn.primary:hover { background: var(--accent); border-color: var(--accent); }
+.btn.danger { color: var(--muted); }
+.btn.danger:hover { border-color: var(--muted); color: var(--text); }
+.btn.small { padding: 4px 9px; font-size: 12px; }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.btn:disabled:hover { border-color: var(--border); }
+
+/* ---------- Tables ---------- */
+table.list { width: 100%; border-collapse: collapse; margin-top: 10px; }
+table.list th, table.list td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
+table.list th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+table.list tr.sub td { background: var(--bg-2); }
+table.list tr.sub td.indent { padding-left: 22px; color: var(--muted); }
+
+/* ---------- Endpoints ---------- */
+.projects-panel { padding: 24px 28px; }
+.project-create-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.project-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.project-card.loaded {
+  border-color: rgba(28,156,236,0.45);
+  background: rgba(28,156,236,0.08);
+}
+.project-card-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+}
+.project-card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.project-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--text);
+  font-weight: 700;
+}
+.project-card-path code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.project-card-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.project-card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+@media (max-width: 820px) {
+  .project-create-grid,
+  .project-card { grid-template-columns: 1fr; }
+  .project-card-icon { display: none; }
+  .project-card-actions { justify-content: flex-start; }
+}
+
+
+/* Add-endpoint modal */
+.endpoint-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+}
+.endpoint-modal-backdrop[hidden] { display: none; }
+.endpoint-modal {
+  width: 100%;
+  max-width: 440px;
+  background: var(--panel);
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  padding: 16px 18px;
+}
+.endpoint-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.endpoint-modal-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.endpoint-modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.endpoint-modal-close:hover { color: var(--text); }
+.endpoint-modal-form { gap: 10px; }
+.endpoint-modal-form .actions { margin-top: 2px; }
+/* Keep fields (esp. the resizable description) inside the modal: only allow
+   vertical resize, and the modal grows in height to match. */
+.endpoint-modal-form textarea,
+.endpoint-modal-form input[type=text] {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.endpoint-modal-form textarea { resize: vertical; }
+.endpoint-modal-form input[type=file],
+.finding-evidence-form input[type=file] {
+  font-size: 13px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  background: var(--panel-2);
+}
+.endpoint-modal-form input[type=file]::file-selector-button,
+.finding-evidence-form input[type=file]::file-selector-button {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  margin-right: 10px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.endpoint-modal-form input[type=file]::file-selector-button:hover,
+.finding-evidence-form input[type=file]::file-selector-button:hover {
+  border-color: var(--accent);
+}
+.finding-evidence-form .evidence-desc-input { flex: 1 1 220px; min-width: 180px; }
+
+/* ---------- Finding evidence gallery + viewer popup ---------- */
+.evidence-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+/* Uniform thumbnail cards — every screenshot renders at the same fixed small
+   size regardless of its native dimensions; click to view it full size. */
+.evidence-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 140px;
+  padding: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.evidence-item:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+.evidence-thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 96px;
+  overflow: hidden;
+  background: var(--chip);
+  color: var(--muted);
+}
+.evidence-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.2s ease;
+}
+.evidence-item:hover .evidence-thumb img { transform: scale(1.06); }
+/* "Expand" hint overlaid on image thumbnails when hovered. */
+.evidence-item[data-image="1"] .evidence-thumb::after {
+  content: "\2922";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  line-height: 1;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.evidence-item[data-image="1"]:hover .evidence-thumb::after { opacity: 1; }
+.evidence-name {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.evidence-viewer-modal {
+  width: 100%;
+  max-width: 1200px;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+}
+.evidence-viewer-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.evidence-viewer-meta .btn { margin-left: auto; }
+.evidence-viewer-desc {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.evidence-viewer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+/* The screenshot scales up to the biggest size that still fits the window,
+   constrained on both axes so it can never spill out of the popup. */
+.evidence-viewer-body img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 180px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  margin: auto;
+}
+/* The viewer toggles img/pre via the `hidden` attribute. Our `display: block`
+   above out-specifies the bare `[hidden]` rule, so restate hidden at matching
+   specificity — otherwise a previously-opened image lingers behind text. */
+.evidence-viewer-body img[hidden] { display: none; }
+.evidence-viewer-body pre {
+  flex: 1 1 auto;
+  align-self: stretch;
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+.feature-group-list { display: flex; flex-direction: column; gap: 24px; margin-top: 14px; }
+.feature-group {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.feature-group[open] { border-color: var(--border-2); }
+.feature-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+.feature-group-head::-webkit-details-marker { display: none; }
+.feature-group-head::before {
+  content: ">";
+  color: var(--muted);
+  font-family: var(--vt-accent-font);
+  font-size: 1.15em;
+  line-height: 1;
+  transition: transform 0.15s;
+  margin-right: 4px;
+}
+.feature-group[open] .feature-group-head::before { transform: rotate(90deg); }
+.feature-group-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.feature-group-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.feature-group-body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 18px; }
+.endpoint-add-form {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+}
+.endpoint-add-form.web { grid-template-columns: minmax(280px, 1fr) auto; }
+.endpoint-add-form.infra { grid-template-columns: minmax(280px, 1fr) 120px auto; }
+.endpoint-list { display: flex; flex-direction: column; gap: 10px; }
+.endpoint-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-2);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+/* Left edge: grey while collapsed, black once the endpoint is unfolded. */
+.endpoint-card[open] { border-color: var(--border-2); border-left-color: #000; }
+.endpoint-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+.endpoint-card summary::-webkit-details-marker { display: none; }
+.endpoint-card summary::before {
+  content: ">";
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  transition: transform 0.15s;
+}
+.endpoint-card[open] summary::before { transform: rotate(90deg); }
+.endpoint-summary-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.endpoint-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* The URL is the card's identity — present it as a heading rather than a small inline
+   code chip: larger, full-strength text, no pill background. Host, port and path share
+   one baseline; weight contrast (not size) carries the hierarchy. */
+.endpoint-title code {
+  font-size: 15px;
+  background: transparent;
+  padding: 0;
+  letter-spacing: 0.2px;
+}
+/* The title leads in bold; the raw address sits beside it in muted code. */
+.endpoint-title .ep-name { color: var(--text); font-weight: 700; }
+.endpoint-summary-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.endpoint-details {
+  border-top: 1px solid var(--border);
+  padding: 14px 16px 16px;
+}
+/* Compact endpoint editor: fixed address (IP/host/URL + port + path), feature
+   group, status, observations and save all on one slim line. */
+.endpoint-edit-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.contents-form { display: contents; }
+.endpoint-in {
+  height: 32px;
+  min-width: 0;
+  font-size: 13px;
+}
+.endpoint-in-obs { flex: 3 1 160px; }
+.endpoint-edit-fields .status-select { height: 32px; }
+
+.endpoint-check-assign-btn { color: var(--accent); }
+.endpoint-check-assign-btn:hover { border-color: var(--accent); }
+
+/* Folded "assigned checks": a clear clickable bar with a rotating chevron. */
+.endpoint-checks-fold { margin-bottom: 14px; }
+.endpoint-checks-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  list-style: none;
+}
+.endpoint-checks-summary::-webkit-details-marker { display: none; }
+.endpoint-checks-summary::marker { content: ""; }
+.endpoint-checks-summary:hover { border-color: var(--accent); }
+.endpoint-checks-chevron { flex: 0 0 auto; color: var(--muted); transition: transform 0.15s ease; }
+.endpoint-checks-fold[open] .endpoint-checks-chevron { transform: rotate(90deg); }
+.endpoint-checks-count {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--chip);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.endpoint-checks-fold[open] .endpoint-checks-summary { margin-bottom: 8px; }
+.endpoint-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+@media (max-width: 820px) {
+  .endpoint-add-form { grid-template-columns: 1fr; }
+  .endpoint-card summary { align-items: flex-start; }
+  .endpoint-summary-meta { justify-content: flex-start; }
+}
+.endpoint-status-pill { font-weight: 600; }
+.endpoint-status-pill-todo { background: var(--chip); color: var(--muted); }
+.endpoint-status-pill-focused { background: rgba(28,156,236,0.16); border-color: rgba(28,156,236,0.42); color: var(--accent); }
+.endpoint-status-pill-tested {
+  background: rgba(74,222,128,0.18);
+  border-color: rgba(74,222,128,0.50);
+  color: var(--ok);
+}
+.endpoint-status-pill-out_of_scope { background: rgba(139,147,167,0.18); color: var(--muted); opacity: 0.85; }
+.pill.endpoint-vuln-pill { font-weight: 700; background: rgba(127,29,29,0.70); border-color: rgba(127,29,29,0.70); color: #fecaca; }
+.endpoint-card.endpoint-status-tested {
+  border-left: 4px solid var(--ok);
+}
+.endpoint-card.endpoint-status-tested[open] {
+  border-left-color: var(--ok);
+}
+.endpoint-card.endpoint-status-tested summary::before {
+  color: var(--ok);
+}
+.endpoint-card.endpoint-status-focused {
+  border-left: 4px solid var(--accent);
+  animation: focus-left-edge-glow 2.0s ease-in-out infinite;
+}
+.endpoint-card.endpoint-status-focused summary::before {
+  color: var(--accent);
+}
+@keyframes focused-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(28,156,236,0.40), 0 0 14px rgba(28,156,236,0.28), var(--shadow); }
+  50%      { box-shadow: 0 0 0 1px rgba(28,156,236,0.55), 0 0 22px rgba(28,156,236,0.45), var(--shadow); }
+}
+.endpoint-card.endpoint-status-out_of_scope { opacity: 0.75; }
+.endpoint-section-title { margin: 6px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.endpoint-check-row-link { display: flex; flex: 1; justify-content: space-between; gap: 12px; align-items: center; color: var(--text); }
+.endpoint-check-row-link:hover { text-decoration: none; }
+.endpoint-check-row-status { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.endpoint-check-observations { flex: 0 1 220px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn.danger.small { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn.danger.small:hover { background: var(--panel-2); color: var(--text); }
+.endpoint-check-assign-form { margin-top: 10px; display: inline-flex; gap: 8px; align-items: center; }
+.endpoint-check-assign-form select { min-width: 260px; }
+@media (max-width: 820px) {
+  .endpoint-check-row-link { flex-direction: column; align-items: flex-start; }
+}
+
+/* ---------- Options panel ---------- */
+.options-panel { padding: 16px 20px; }
+.option-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 0;
+}
+.option-row + .option-row { border-top: 1px solid var(--border); }
+.option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.option-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.option-label svg { color: var(--muted); flex: 0 0 auto; }
+.option-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+/* ---------- Toggle switch ---------- */
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+  position: relative;
+}
+.toggle-switch input[type=checkbox] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.toggle-track {
+  width: 44px;
+  height: 24px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  position: relative;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.20);
+  transition: background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+}
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: var(--muted);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.22s ease;
+}
+.toggle-switch input:checked + .toggle-track {
+  background: rgba(28,156,236,0.22);
+  border-color: var(--accent);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.10), 0 0 0 3px rgba(28,156,236,0.13);
+}
+.toggle-switch input:checked + .toggle-track::after {
+  transform: translateX(20px);
+  background: var(--accent);
+  box-shadow: 0 1px 4px rgba(28,156,236,0.45);
+}
+.toggle-switch:hover .toggle-track { border-color: var(--accent); }
+.toggle-switch:focus-within .toggle-track {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(28,156,236,0.18);
+}
+
+/* ---------- Misc ---------- */
+.pill { background: var(--chip); color: var(--muted); font-size: 11px; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.4px; }
+.lock { font-size: 10px; color: var(--warn); border: 1px solid var(--warn); padding: 1px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.4px; background: rgba(250,204,21,0.08); display: inline-flex; align-items: center; gap: 4px; }
+.scope-title { display: inline-flex; align-items: center; gap: 8px; }
+.scope-lock-state { display: inline-flex; align-items: center; gap: 4px; }
+.scope-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.phase-block { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 10px; }
+.phase-block.current h3 { color: var(--accent); }
+.checklist-panel { padding: 24px 28px; }
+.checklist-toolbar {
+  display: flex;
+  align-items: stretch;
+  gap: clamp(6px, 0.9vw, 12px);
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.check-filter-stats {
+  /* basis 0 + min-width 0 so the grid yields space to the fold/sort actions and
+     squeezes its own columns instead of shoving the actions onto a second row. */
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: clamp(6px, 0.9vw, 12px);
+}
+@media (max-width: 820px) { .check-filter-stats { grid-template-columns: repeat(3, 1fr); } }
+.check-action-stats { display: flex; flex-wrap: wrap; gap: clamp(6px, 0.9vw, 12px); }
+
+/* Status count panels — modelled on the findings severity panels (.sev-stat),
+   but they start grey and only light up in the status colour once selected. */
+.check-filter-stat {
+  --stat-color: var(--muted);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-2);
+  border-radius: 12px;
+  padding: 14px clamp(8px, 1.1vw, 16px);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, color 0.15s;
+}
+.check-filter-stat:hover { transform: translateY(-2px); }
+.check-filter-stat-icon { position: absolute; top: 12px; right: 12px; opacity: 0.85; z-index: 1; }
+.check-filter-stat-num { font-size: 30px; font-weight: 700; line-height: 1; color: var(--text); position: relative; z-index: 1; }
+.check-filter-stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; position: relative; z-index: 1; }
+
+/* Per-status colour, applied only once the panel is selected (via --stat-color). */
+.check-filter-stat.f-vulnerable { --stat-color: #991b1b; }
+.check-filter-stat.f-warning,
+.check-filter-stat.f-failed { --stat-color: var(--warn); }
+.check-filter-stat.f-passed { --stat-color: var(--ok); }
+.check-filter-stat.f-pending,
+.check-filter-stat.f-not_applicable { --stat-color: var(--muted); }
+
+/* Endpoint lifecycle statuses (endpoints toolbar). */
+.check-filter-stat.f-todo,
+.check-filter-stat.f-out-of-scope { --stat-color: var(--muted); }
+.check-filter-stat.f-focused { --stat-color: var(--accent); }
+.check-filter-stat.f-tested { --stat-color: var(--ok); }
+/* Five status filters instead of the checklist's six. */
+.endpoint-filter-stats { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 820px) { .endpoint-filter-stats { grid-template-columns: repeat(3, 1fr); } }
+
+/* Selected: light up in the status colour + the same diagonal "shift stripes"
+   texture the findings count panels use, tinted via currentColor. */
+.check-filter-stat.filtered {
+  color: var(--stat-color);
+  border-color: var(--stat-color);
+}
+.check-filter-stat.filtered .check-filter-stat-num { color: var(--stat-color); }
+.check-filter-stat.filtered::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: linear-gradient(135deg, currentColor 25%, transparent 25%, transparent 50%, currentColor 50%, currentColor 75%, transparent 75%);
+  background-size: 8px 8px;
+  opacity: 0.14;
+}
+
+/* Fold / Sort action panels — same shell, just an icon + label, no count. */
+.check-action-stat { min-width: clamp(78px, 8vw, 104px); justify-content: flex-end; }
+/* Toggled on: the grey left border turns black — never the reserved blue. */
+.check-action-stat.active { border-left-color: #000; }
+
+/* Thin grey divider between the status filters and the fold/sort actions. */
+.checklist-action-sep {
+  align-self: stretch;
+  width: 1px;
+  background: var(--border);
+  margin: 0 2px;
+}
+.count-pill { margin-right: 4px; }
+.endpoint-link-pill {
+  display: inline-block;
+  margin: 2px 4px 2px 0;
+  text-decoration: none;
+}
+.endpoint-link-pill:hover {
+  text-decoration: underline;
+}
+/* Endpoint checks reuse the global-check row shell; the assigned-status
+   summary and the endpoint pills sit inline and wrap under the title. */
+.check-per-endpoint-summary,
+.check-per-endpoint-pills {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+.check-per-endpoint-pills { flex: 1 1 240px; }
+.endpoint-check-row-edit {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--panel-2);
+}
+.endpoint-check-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.endpoint-check-row-title { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.check-category {
+  border-top: 1px solid var(--border);
+  padding: 0;
+}
+.check-category:first-of-type { border-top: 0; }
+.check-category-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 16px 0;
+  cursor: pointer;
+  list-style: none;
+}
+.check-category-head::-webkit-details-marker { display: none; }
+.check-category-head::before {
+  content: ">";
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  transition: transform 0.15s;
+}
+.check-category[open] .check-category-head::before { transform: rotate(90deg); }
+.check-category-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+.check-category-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.check-row td {
+  background: transparent;
+  transition: background 0.15s, opacity 0.15s;
+}
+table.list tr.status-row-failed td {
+  background: transparent;
+  border-bottom-color: var(--border);
+}
+table.list tr.status-row-done td,
+table.list tr.status-row-passed td {
+  background: rgba(74,222,128,0.10);
+  border-bottom-color: rgba(74,222,128,0.20);
+}
+table.list tr.status-row-done td:first-child,
+table.list tr.status-row-passed td:first-child { border-left: 3px solid var(--ok); }
+table.list tr.status-row-warning td {
+  background: rgba(250,204,21,0.11);
+  border-bottom-color: rgba(250,204,21,0.24);
+}
+table.list tr.status-row-warning td:first-child { border-left: 3px solid var(--warn); }
+table.list tr.status-row-vulnerable td {
+  background: rgba(127,29,29,0.38);
+  border-bottom-color: rgba(248,113,113,0.30);
+}
+table.list tr.status-row-vulnerable td:first-child { border-left: 3px solid var(--bad); }
+table.list tr.status-row-not_applicable td {
+  background: rgba(139,147,167,0.035);
+  color: var(--muted);
+  opacity: 0.52;
+}
+table.list tr.status-row-not_applicable td:first-child { border-left: 3px solid var(--border-2); }
+.check-row-tools {
+  display: grid;
+  gap: 8px;
+}
+.check-update-form {
+  display: grid;
+  grid-template-columns: 150px minmax(220px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.check-update-form select,
+.check-update-form input[type=text] {
+  width: 100%;
+}
+.check-evidence-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.check-evidence-form input[type=file] {
+  min-width: 0;
+  color: var(--muted);
+}
+@media (max-width: 980px) {
+  .check-title-col,
+  .check-scope-col,
+  .check-status-col,
+  .check-edit-col { width: auto; }
+  .check-update-form,
+  .check-evidence-form { grid-template-columns: 1fr; }
+}
+
+.status { font-size: 11px; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+.status-pending { background: var(--chip); color: var(--muted); }
+.status-done,
+.status-passed { background: rgba(74,222,128,0.15); color: var(--ok); }
+.status-warning { background: rgba(250,204,21,0.15); color: var(--warn); }
+.status-vulnerable { background: rgba(127,29,29,0.70); color: #fecaca; }
+.status-failed { background: rgba(250,204,21,0.18); color: var(--warn); }
+.status-not.applicable, .status-not_applicable { background: var(--chip); color: var(--muted); opacity: 0.7; }
+.status-skipped { background: rgba(250,204,21,0.15); color: var(--warn); }
+/* Workflow step "focused" status reuses the .status-focused rule defined with
+   the endpoint status palette below (identical azure glow). */
+@keyframes status-glow {
+  0%, 100% { box-shadow: 0 0 4px 0 rgba(28,156,236,0.3); }
+  50% { box-shadow: 0 0 10px 2px rgba(28,156,236,0.7); }
+}
+
+/* ---------- Workflow page stage cards ---------- */
+.workflow-warning {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: rgba(250,204,21,0.35);
+  background: rgba(250,204,21,0.08);
+}
+.endpoint-workflow-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.endpoint-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+.endpoint-count.todo { color: #fbbf24; }
+.endpoint-count.tested { color: var(--ok); }
+.endpoint-count.out { color: var(--muted); }
+.workflow-stages {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.stage-focused-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 14px;
+  align-items: stretch;
+}
+.stage-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  transition: border-color 0.2s;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.stage-card { position: relative; }
+/* When jumping to a phase from the breadcrumb, leave room above the card so it
+   lands below the sticky breadcrumb bar (~66px) instead of tucked under it. */
+.stage-card { scroll-margin-top: 84px; }
+.stage-topright {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.stage-phase-id,
+.stage-advanced-at {
+  font-size: 10.5px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.stage-card.active .stage-phase-id,
+.stage-card.active .stage-advanced-at {
+  color: var(--text);
+  border-color: var(--border-2);
+}
+.timestamp-pill {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* Small "done at <time>" stamp for finished checks and tested endpoints —
+   mirrors the phase-card .stage-advanced-at timestamp so the whole app reads
+   the same way once something is marked complete. */
+.done-at-stamp {
+  font-size: 10.5px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.done-at-stamp svg { opacity: 0.7; flex: none; }
+.check-row-main .done-at-stamp { margin-left: auto; }
+
+/* Agent attribution chips (project_base.html agent_tags macro): who is working
+   on an item (focused_by, accent) and who finished it (done_by, green). */
+.agent-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.agent-tag svg { flex: none; opacity: 0.9; }
+.agent-tag--focused { color: var(--accent); border-color: rgba(28,156,236,0.45); background: rgba(28,156,236,0.10); }
+.agent-tag--done { color: var(--ok); border-color: rgba(74,222,128,0.40); background: rgba(74,222,128,0.10); }
+.scope-head-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.stage-card.active { border-color: var(--accent); border-width: 3px; }
+.stage-card.done { opacity: 0.92; }
+.stage-card.future { opacity: 0.7; }
+.stage-card.modify-mode {
+  border-color: #f59e0b;
+  opacity: 1;
+  box-shadow:
+    0 0 0 1px rgba(245,158,11,0.6),
+    0 0 18px 2px rgba(245,158,11,0.45),
+    0 0 38px 4px rgba(245,158,11,0.18),
+    var(--shadow);
+  animation: modify-mode-pulse 2.4s ease-in-out infinite;
+}
+@keyframes modify-mode-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(245,158,11,0.6),
+      0 0 18px 2px rgba(245,158,11,0.45),
+      0 0 38px 4px rgba(245,158,11,0.18),
+      var(--shadow);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(245,158,11,0.85),
+      0 0 24px 3px rgba(245,158,11,0.6),
+      0 0 50px 6px rgba(245,158,11,0.28),
+      var(--shadow);
+  }
+}
+.stage-card.modify-mode .stage-marker { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.45); color: #f59e0b; }
+.modify-mode-pill { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.45); color: #f59e0b; }
+.btn.modify-mode-toggle.active {
+  background: rgba(245,158,11,0.18);
+  border-color: #f59e0b;
+  color: #f59e0b;
+  box-shadow: 0 0 10px 1px rgba(245,158,11,0.55), 0 0 22px 3px rgba(245,158,11,0.25);
+  animation: modify-mode-pulse 2.4s ease-in-out infinite;
+}
+.btn.modify-mode-toggle.active:hover {
+  background: rgba(245,158,11,0.28);
+  border-color: #fbbf24;
+  color: #fde68a;
+}
+.workflow-finished-panel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 18px 20px;
+  background: var(--panel);
+  border: 1px solid rgba(74,222,128,0.45);
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgba(74,222,128,0.35),
+    0 0 18px 2px rgba(74,222,128,0.18),
+    var(--shadow);
+}
+.workflow-finished-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px; height: 44px;
+  flex: none;
+  border-radius: 12px;
+  background: rgba(74,222,128,0.12);
+  border: 1px solid rgba(74,222,128,0.4);
+  color: var(--ok);
+}
+.workflow-finished-text h2 { margin: 0; }
+.workflow-finished-text p { margin: 2px 0 0; }
+.stage-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+/* Active phase gets an accent underline so the header reads as a section head. */
+.stage-card.active .stage-head { border-bottom-color: var(--accent); }
+.stage-title { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+/* Title and its tags (optional / Re-open / skipped …) share one heading line. */
+.stage-title-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stage-marker {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  background: var(--panel-2); border: 1px solid var(--border-2);
+  color: var(--muted);
+  position: relative;
+}
+.stage-marker .stage-num { font-size: 13px; font-weight: 700; }
+.stage-marker .stage-icon { display: inline-flex; margin-top: -2px; opacity: 0.85; }
+.stage-card[data-phase="scope_definition"] .stage-marker { color: #a78bfa; }
+.stage-card[data-phase="reachability"] .stage-marker    { color: #38bdf8; }
+.stage-card[data-phase="initial_recon"] .stage-marker   { color: #22d3ee; }
+.stage-card[data-phase="recon"] .stage-marker           { color: #14b8a6; }
+.stage-card[data-phase="target_insights"] .stage-marker { color: #2dd4bf; }
+.stage-card[data-phase="modify_checklist"] .stage-marker { color: #a3e635; }
+.stage-card[data-phase="general_checks"] .stage-marker  { color: #84cc16; }
+.stage-card[data-phase="specific_checks"] .stage-marker { color: #f59e0b; }
+.stage-card[data-phase="free_testing"] .stage-marker    { color: #ec4899; }
+.stage-card[data-phase="attack_chaining"] .stage-marker { color: #fb7185; }
+.stage-card[data-phase="finishing_up"] .stage-marker    { color: #ef4444; }
+.stage-card.active .stage-marker {
+  border-color: currentColor;
+  animation: phase-pulse 2.4s ease-in-out infinite;
+}
+.stage-card.done .stage-marker { background: rgba(74,222,128,0.12); border-color: rgba(74,222,128,0.4); color: var(--ok); }
+.stage-title h2 { margin: 0; font-size: 16px; text-transform: none; color: var(--text); letter-spacing: 0; }
+.stage-title .muted { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 0; }
+.stage-title .muted:empty { display: none; }
+/* Phase description now lives in a hover tooltip on the title/icon. */
+.stage-title h2[data-tooltip], .stage-marker[data-tooltip] { cursor: help; }
+.focused-endpoints-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  height: 100%;
+  min-height: 100%;
+}
+.focused-endpoints-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.focused-endpoints-head h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.focused-endpoints-subhead {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+.focused-endpoints-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.focused-endpoints-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: var(--bg-2);
+}
+.focused-endpoints-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  text-decoration: none;
+}
+.focused-endpoints-link:hover { color: var(--accent); }
+.focused-endpoints-link code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.focused-endpoints-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.focused-endpoints-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-2);
+}
+.focused-endpoints-candidate span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Endpoint status state machine: flow map shown inside the expanded card. */
+.endpoint-fsm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+.fsm-node {
+  --c: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.7;
+  white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease;
+}
+/* Neutral by default; only the current state takes its colour. */
+.fsm-node .fsm-ico { color: var(--muted); flex: none; }
+.fsm-node.s-focused { --c: var(--accent); }
+.fsm-node.s-tested  { --c: var(--ok); }
+.fsm-node.is-current {
+  color: var(--text);
+  border-color: var(--text);
+  background: color-mix(in srgb, var(--c) 16%, var(--panel));
+  box-shadow: 0 0 0 1px var(--text);
+}
+.fsm-node.is-current .fsm-ico { color: var(--c); }
+.fsm-node.ghost { opacity: 0.4; }
+.fsm-arrow { color: var(--muted); flex: none; }
+.fsm-edge { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1; }
+.fsm-stage {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.fsm-stage.is-current {
+  color: var(--text);
+  padding: 2px 9px;
+  border: 1px solid var(--text);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  box-shadow: 0 0 0 1px var(--text);
+}
+.fsm-mini {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+/* In-flow action controls folded into the adjust/execute/tested stages. */
+.fsm-stage-action,
+.fsm-stage-progress { display: inline-flex; align-items: center; gap: 7px; }
+.fsm-stage.is-done {
+  color: var(--text);
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, var(--ok) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ok) 14%, var(--panel));
+}
+.fsm-stage-check { color: var(--ok); flex: none; }
+.fsm-inline-form { display: inline-flex; margin: 0; }
+.fsm-node .fsm-inline-form { margin-left: 1px; }
+.fsm-confirm-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.28);
+  transition: transform .12s ease, background .15s ease, box-shadow .15s ease, opacity .15s ease;
+}
+.fsm-confirm-btn:hover { transform: scale(1.14); box-shadow: 0 2px 7px rgba(0,0,0,0.32); }
+.fsm-confirm-btn:active { transform: scale(0.94); }
+.fsm-confirm-btn.is-tested { background: var(--ok); }
+.fsm-confirm-btn:disabled {
+  background: var(--border-2);
+  color: var(--muted);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+.fsm-progress {
+  position: relative;
+  display: inline-block;
+  width: 66px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border-2);
+  overflow: hidden;
+}
+.fsm-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--ok));
+  transition: width .35s ease;
+}
+.fsm-progress-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.check-status-row.not-applicable label > span,
+.check-status-row.not-applicable label > a {
+  color: var(--muted);
+}
+.stage-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.stage-steps li { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: var(--bg-2); border-radius: 8px; gap: 10px; }
+.stage-steps li > div:first-child { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; max-width: 100%; min-width: 0; }
+.stage-steps li.step-row { flex-direction: column; align-items: stretch; min-width: 0; transition: background 0.12s; }
+/* Hover tint so long step lists feel responsive — only in the active phase;
+   done/future phases stay static. A touch darker grey on hover. */
+.stage-card.active .stage-steps li.step-row:not(.disabled-step):hover { background: var(--chip); }
+:root[data-theme="light"] .stage-card.active .stage-steps li.step-row:not(.disabled-step):hover { background: #e2e6ef; }
+.stage-steps li.step-row.locked { opacity: 0.72; }
+/* Current-step marker: a small grey arrow pointing at the step the resolver
+   says to work on next, mirroring the active-page triangle in the sidebar. Sits
+   in the gutter just outside the panel's left edge, and tracks the first line so
+   it stays put when the notes/context editors expand. */
+.stage-steps li.step-row.current-step > .step-row-main { position: relative; }
+.stage-steps li.step-row.current-step > .step-row-main::before {
+  content: "";
+  position: absolute;
+  left: -22px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 5px 0 5px 7px;
+  border-color: transparent transparent transparent var(--muted);
+}
+.stage-steps li.step-row.disabled-step {
+  opacity: 0.18;
+  filter: grayscale(1);
+  background: transparent;
+  border: 1px dashed var(--border);
+  pointer-events: none;
+}
+.stage-steps li.step-row.disabled-step:hover { opacity: 0.5; }
+.stage-steps li.step-row.disabled-step .step-disable-form {
+  pointer-events: auto;
+  opacity: 1;
+  filter: none;
+}
+.stage-steps li.step-row.disabled-step .step-disable-form .step-disable-toggle {
+  opacity: 1;
+  filter: none;
+}
+/* The disable toggle is a state-changing action, not a passive info popover.
+   Separate it from the info/examples icons and give it action affordance. */
+.step-disable-form {
+  position: relative;
+  margin-left: 8px;
+  padding-left: 10px;
+}
+.step-disable-form::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 16px;
+  width: 1px;
+  background: var(--border);
+}
+.step-disable-toggle {
+  border-color: var(--border) !important;
+  background: var(--bg-2) !important;
+}
+.step-disable-toggle:hover {
+  color: #e57373 !important;
+  border-color: #e57373 !important;
+  background: rgba(229, 115, 115, 0.12) !important;
+}
+.step-disable-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: transparent !important;
+}
+.step-disable-toggle[aria-pressed="true"]:hover {
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  background: rgba(0,0,0,0.04) !important;
+}
+.step-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+/* Fixed-width title column (~30 chars) so the icons and status dropdown on every
+   row line up on the same vertical edge. Longer titles ellipsis; the full text
+   stays available on hover via the title attribute. A thin divider closes the
+   column so the alignment reads as intentional structure. */
+.step-title {
+  flex: 0 0 30ch; width: 30ch; max-width: 30ch; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding-right: 12px;
+  border-right: 1px solid var(--border);
+}
+@media (max-width: 700px) {
+  .step-title { flex-basis: auto; width: auto; max-width: 100%; border-right: none; padding-right: 0; }
+}
+.step-scope { flex: 0 0 auto; }
+.step-lock { flex: 0 0 auto; }
+.step-status-form { flex: 0 0 auto; margin: 0; }
+.step-notes-form { flex: 1 1 240px; margin: 0; min-width: 0; flex-wrap: nowrap; align-items: flex-start; }
+.step-notes-form textarea.step-notes { flex: 1 1 auto; min-width: 0; }
+.step-notes-form textarea.step-notes-full { flex: 1 1 auto; min-width: 0; }
+.step-notes-preview {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 32px;
+  margin-left: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.step-notes-preview:hover,
+.step-notes-preview[aria-expanded="true"] {
+  border-color: var(--accent);
+}
+.step-notes-preview[data-empty="true"] {
+  color: var(--muted);
+}
+.step-notes-preview-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.step-notes-preview::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 400;
+  white-space: pre-wrap;
+  width: max-content;
+  max-width: 320px;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  z-index: 50;
+}
+.step-notes-preview:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* JS-enhanced rich tooltip (see live.js). When present, it replaces the CSS
+   ::after fallback used by [data-tooltip] elements — wider, supports newlines,
+   and bolds lines that start with `#`. */
+body.js-tooltips [data-tooltip]::after { display: none !important; }
+.rich-tooltip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  max-width: 560px;
+  min-width: 220px;
+  padding: 10px 14px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.rich-tooltip[data-visible="true"] { opacity: 1; }
+.rich-tooltip strong { color: var(--accent); font-weight: 600; }
+.rich-tooltip strong + br + strong { margin-top: 6px; }
+
+.ctx-icons { flex: 0 0 102px; width: 102px; display: inline-flex; align-items: center; gap: 6px; }
+.ctx-icon-svg {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.ctx-icon-svg:hover { border-color: var(--border-2); color: var(--text); background: var(--bg-2); }
+.ctx-icon-svg[data-empty="false"] { color: var(--accent); }
+.ctx-icon-svg[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+/* Finish-step button. Not done: a faint, recessed grey check that reads as a
+   button (subtle border) but stays in the background. Done: a bold black check
+   with a solid black border -- never the accent blue used by other ctx icons. */
+.step-finish-btn { color: var(--border-2); border-color: var(--border-2); opacity: 0.65; }
+.step-finish-btn:hover { color: var(--text); opacity: 1; }
+.step-finish-btn[data-empty="false"],
+.step-finish-btn[data-empty="false"]:hover { color: #000; border-color: #000; background: transparent; opacity: 1; }
+.step-finish-btn[data-empty="false"] svg { stroke-width: 3.2; }
+.ctx-icon-svg::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(100% + 6px);
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: pre-wrap;
+  width: max-content;
+  max-width: 320px;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  z-index: 50;
+}
+.ctx-icon-svg:hover::after { opacity: 1; visibility: visible; }
+
+.human-advance-icon { cursor: default; color: var(--bad); border-color: var(--bad); }
+.human-advance-icon:hover { border-color: var(--bad); background: transparent; color: var(--bad); }
+
+.row-editor { padding-top: 10px; }
+.context-form { display: flex; flex-direction: column; gap: 10px; }
+.context-form label { display: flex; flex-direction: column; gap: 4px; }
+.context-form label > span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.context-form textarea { padding: 8px 10px; resize: vertical; font-family: inherit; line-height: 1.4; }
+
+.status-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  padding-right: 22px;
+  /* Chevron is hardcoded muted grey, not currentColor: currentColor does not
+     resolve inside a CSS background-image SVG (it falls back to black, which is
+     invisible on the dark control), so the arrow would silently disappear. */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b93a7' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 9px 9px;
+}
+.status-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.status-select option { background: var(--panel); color: var(--text); text-transform: none; letter-spacing: 0; }
+.pill.state-done { color: var(--ok); }
+.pill.state-active { color: var(--accent); }
+.pill.state-future { color: var(--muted); }
+@media (max-width: 980px) {
+  .stage-focused-row { grid-template-columns: 1fr; }
+}
+
+/* ---------- Work-on-Checklist phase panel (workflow page) ---------- */
+.checklist-work-panel {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dotted var(--border-2);
+}
+.checklist-work-subhead {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.checklist-work-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+ul.stage-steps > li.checklist-check-step.step-row,
+ul.stage-steps > li.check-row-li.step-row {
+  border: 1px solid var(--border) !important;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  background-color: var(--bg-2) !important;
+  background-image:
+    linear-gradient(135deg, rgba(255,255,255,0.025) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.025) 50%, rgba(255,255,255,0.025) 75%, transparent 75%) !important;
+  background-size: 8px 8px !important;
+}
+:root[data-theme="light"] ul.stage-steps > li.checklist-check-step.step-row,
+:root[data-theme="light"] ul.stage-steps > li.check-row-li.step-row {
+  background-image:
+    linear-gradient(135deg, rgba(30,40,70,0.035) 25%, transparent 25%, transparent 50%, rgba(30,40,70,0.035) 50%, rgba(30,40,70,0.035) 75%, transparent 75%) !important;
+}
+.checklist-check-title-link {
+  color: var(--text);
+  text-decoration: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.checklist-check-title-link:hover { color: var(--accent); text-decoration: underline; }
+ul.stage-steps > li.checklist-check-step.focused-check,
+ul.stage-steps > li.check-row-li.check-focused {
+  border-left: 4px solid var(--accent) !important;
+  animation: focus-left-edge-glow 2.0s ease-in-out infinite;
+}
+@keyframes focus-left-edge-glow {
+  0%, 100% { box-shadow: -1px 0 4px 0 rgba(28,156,236,0.25), inset 2px 0 4px -2px rgba(28,156,236,0.15); }
+  50%      { box-shadow: -1px 0 8px 1px rgba(28,156,236,0.40), inset 2px 0 6px -2px rgba(28,156,236,0.25); }
+}
+.checklist-check-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  color: var(--text);
+}
+.checklist-check-link:hover { text-decoration: none; color: var(--accent); }
+.checklist-check-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.checklist-check-obs-preview {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 28px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+}
+.checklist-check-obs-preview[data-empty="true"] { color: var(--muted); }
+.checklist-check-obs-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.checklist-check-evidence-icons { display: inline-flex; gap: 4px; flex-shrink: 0; }
+
+/* ---------- Checklist global-check rows (checklist page) ---------- */
+.check-rows-list.stage-steps { margin: 8px 0 12px; }
+/* The status filter sets li.hidden=true; `.stage-steps li { display: flex }`
+   beats the UA [hidden] rule by specificity, so force it back to none. */
+ul.check-rows-list > li[hidden] { display: none !important; }
+ul.stage-steps > li.check-row-li.check-finished {
+  border-left: 4px solid rgba(74,222,128,0.55) !important;
+}
+.check-row-main { flex-wrap: wrap; }
+.check-row-title { flex: 0 1 auto; min-width: 0; }
+.check-status-form { margin: 0; }
+.check-row-obs-preview {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 0;
+  height: 32px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.check-row-obs-preview:hover,
+.check-row-obs-preview[aria-expanded="true"] { border-color: var(--accent); }
+.check-row-obs-preview[data-empty="true"] { color: var(--muted); }
+.check-row-obs-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.check-row-evidence-icons { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.check-row-notes-editor textarea.check-row-notes-full {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.check-row-notes-editor .actions { margin-top: 8px; }
+.check-row-context-editor { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.check-row-context-editor label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.check-row-context-editor textarea { width: 100%; resize: vertical; min-height: 60px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font: inherit; }
+.check-row-evidence-upload {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.check-row-evidence-form { gap: 8px; flex-wrap: wrap; align-items: center; }
+.file-input-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.file-input-label input[type=file] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+.file-input-text {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.check-finish-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+/* Category glow when any global-check in it is focused */
+.check-category.category-focused > summary {
+  border-color: rgba(28,156,236,0.55);
+  background: rgba(28,156,236,0.08);
+  box-shadow: 0 0 12px rgba(28,156,236,0.25);
+  animation: focused-glow 2.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+.check-category.category-focused > summary .check-category-title { color: var(--accent); }
+
+/* ---------- Endpoint rows: dot-grid pattern + left-edge focus glow.
+   Distinct from the diagonal-stripe pattern used for global-check rows so the
+   two domains stay visually separable. Applied to the workflow page panel
+   (.focused-endpoints-item) and the endpoint cards on the endpoints page. ---------- */
+.focused-endpoints-item,
+details.endpoint-card {
+  background-image:
+    radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px) !important;
+  background-size: 7px 7px !important;
+  background-position: 0 0 !important;
+}
+:root[data-theme="light"] .focused-endpoints-item,
+:root[data-theme="light"] details.endpoint-card {
+  background-image:
+    radial-gradient(rgba(30,40,70,0.12) 1px, transparent 1px) !important;
+}
+/* Focused endpoint in the workflow panel: pulsing blue left edge. */
+.focused-endpoints-item.focused-endpoint {
+  border-left: 4px solid var(--accent) !important;
+  animation: focus-left-edge-glow 2.0s ease-in-out infinite;
+}
+/* Recently tested endpoint in the workflow panel: static green left edge. */
+.focused-endpoints-item.tested-endpoint {
+  border-left: 4px solid rgba(74,222,128,0.55) !important;
+}
+
+/* Top row of a focused/recently-tested endpoint card: the name link on the
+   left, the Unfocus button on the right. Status select + observations
+   preview live underneath, styled the same as workflow step rows. */
+.focused-endpoints-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Endpoint-status pill colors for the status-select widget on the workflow
+   panel. Mirrors the step status palette but uses the endpoint vocabulary
+   (todo / focused / tested / out-of-scope). */
+.status-todo { background-color: var(--chip); color: var(--muted); }
+.status-focused {
+  background-color: rgba(28,156,236,0.15);
+  color: var(--accent);
+  animation: status-glow 1.6s ease-in-out infinite;
+}
+.status-tested { background-color: rgba(74,222,128,0.15); color: var(--ok); }
+.status-out_of_scope { background-color: var(--chip); color: var(--muted); opacity: 0.7; }
+

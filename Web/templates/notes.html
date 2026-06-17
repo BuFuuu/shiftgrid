@@ -1,0 +1,84 @@
+{% extends "project_base.html" %}
+{% block title %}Notes - {{ project.name }}{% endblock %}
+{% block page_subtitle %}<span class="page-header-subtitle">brief testing summary for all agents</span>{% endblock %}
+{% block content %}
+<section class="panel">
+  <form method="post" action="{{ url_for('web.notes_save') }}" class="form" id="notes-form">
+    <div class="md-editor">
+      <div class="md-backdrop" id="notes-backdrop" aria-hidden="true"><div class="md-highlights" id="notes-highlights"></div></div>
+      <textarea name="notes" rows="28" spellcheck="false" id="notes-textarea" class="md-input">{{ project.data.notes or '' }}</textarea>
+    </div>
+    <div class="floating-advance">
+      <button class="btn floating-save-btn" type="submit" id="notes-save-btn">Save notes</button>
+    </div>
+  </form>
+</section>
+<script>
+  (function () {
+    var area = document.getElementById('notes-textarea');
+    var btn = document.getElementById('notes-save-btn');
+    var backdrop = document.getElementById('notes-backdrop');
+    var hl = document.getElementById('notes-highlights');
+    if (!area) return;
+
+    var ESC = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
+    function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return ESC[c]; }); }
+
+    // Inline spans run on already-escaped text. `*` and `` ` `` are not
+    // HTML-special, so they survive escaping and we can match them directly.
+    // We keep the markers visible and only colour them (no weight changes).
+    function inline(s) {
+      s = s.replace(/`([^`]+?)`/g, '<span class="md-code">`$1`</span>');
+      s = s.replace(/\*\*([^*]+?)\*\*/g, '<span class="md-bold">**$1**</span>');
+      s = s.replace(/(^|[^*])\*([^*]+?)\*(?!\*)/g, '$1<span class="md-italic">*$2*</span>');
+      return s;
+    }
+
+    function line(ln) {
+      // Horizontal rule: ---  ***  ___
+      if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(ln))
+        return '<span class="md-hr">' + esc(ln) + '</span>';
+      // ATX heading: #..###### text (level class so each rank looks distinct)
+      var h = ln.match(/^(\s*)(#{1,6})(\s+)(.*)$/);
+      if (h) {
+        var lvl = ' md-h' + h[2].length;
+        return esc(h[1]) + '<span class="md-head-marker' + lvl + '">' + esc(h[2]) + '</span>'
+             + esc(h[3]) + '<span class="md-head' + lvl + '">' + inline(esc(h[4])) + '</span>';
+      }
+      // Blockquote: > text
+      var q = ln.match(/^(\s*)(>+)(.*)$/);
+      if (q)
+        return esc(q[1]) + '<span class="md-quote-marker">' + esc(q[2]) + '</span>'
+             + '<span class="md-quote">' + inline(esc(q[3])) + '</span>';
+      // List item: -  *  +  1.  1)
+      var li = ln.match(/^(\s*)([-*+]|\d{1,9}[.)])(\s+)(.*)$/);
+      if (li)
+        return esc(li[1]) + '<span class="md-list-marker">' + esc(li[2]) + '</span>'
+             + esc(li[3]) + inline(esc(li[4]));
+      return inline(esc(ln));
+    }
+
+    function syncScroll() {
+      backdrop.scrollTop = area.scrollTop;
+      backdrop.scrollLeft = area.scrollLeft;
+    }
+    function render() {
+      var text = area.value;
+      var html = text.split('\n').map(line).join('\n');
+      // A trailing newline needs a placeholder so the last (empty) line keeps
+      // its height and the backdrop scrolls in step with the textarea.
+      if (text.charAt(text.length - 1) === '\n') html += ' ';
+      hl.innerHTML = html;
+      syncScroll();
+    }
+
+    var original = area.value;
+    function refresh() { if (btn) btn.classList.toggle('primary', area.value !== original); }
+
+    area.addEventListener('input', function () { render(); refresh(); });
+    area.addEventListener('scroll', syncScroll);
+    render();
+    refresh();
+  })();
+</script>
+{% endblock %}

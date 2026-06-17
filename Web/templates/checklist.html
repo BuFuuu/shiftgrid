@@ -1,0 +1,602 @@
+{% extends "project_base.html" %}
+{% block title %}Checklist - {{ project.name }}{% endblock %}
+{% block content_class %}checklist-content{% endblock %}
+{% block page_subtitle %}<span class="page-header-subtitle">{{ project.checklist | length }} checks</span>{% endblock %}
+{% block content %}
+{% macro category_icon(category) %}
+  {% if 'auth' in category or 'credential' in category %}
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+  {% elif 'input' in category or 'injection' in category %}
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M14 5l-4 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  {% elif 'data' in category or 'exposure' in category %}
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 6v8c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 10c0 1.7 3.1 3 7 3s7-1.3 7-3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+  {% elif 'monitoring' in category or 'resilience' in category %}
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 13h4l2-6 4 12 2-6h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  {% elif 'network' in category or 'port' in category or 'scope' in category %}
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="6" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 7.5l2.2 7M15.5 7.5l-2.2 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+  {% elif 'business' in category or 'logic' in category %}
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 19V5h14v14H5z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 16l3-4 3 2 2-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  {% else %}
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  {% endif %}
+{% endmacro %}
+
+{% macro status_icon(s) -%}
+{% if s == 'vulnerable' %}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4v5c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7l8-4z"/><path d="M12 8v4"/><circle cx="12" cy="15.5" r="0.6" fill="currentColor"/></svg>
+{% elif s == 'warning' %}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l9 16H3L12 4z"/><path d="M12 10v4"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/></svg>
+{% elif s == 'passed' %}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9"/></svg>
+{% elif s == 'failed' %}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+{% elif s == 'pending' %}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+{% else %}
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>
+{% endif %}
+{%- endmacro %}
+
+{% set global_groups = [] %}
+{% set per_endpoint_groups = [] %}
+{% for group in checklist_groups %}
+  {% set global_checks = group.checks | selectattr('scope', 'equalto', 'global') | list %}
+  {% set per_checks = group.checks | selectattr('scope', 'equalto', 'per_endpoint') | list %}
+  {% if global_checks %}
+    {% set _ = global_groups.append({'id': group.id, 'name': group.name, 'checks': global_checks}) %}
+  {% endif %}
+  {% if per_checks %}
+    {% set _ = per_endpoint_groups.append({'id': group.id, 'name': group.name, 'checks': per_checks}) %}
+  {% endif %}
+{% endfor %}
+{% set global_ns = namespace(n=0) %}
+{% for g in global_groups %}{% set global_ns.n = global_ns.n + (g.checks | length) %}{% endfor %}
+{% set global_count = global_ns.n %}
+{% set per_ns = namespace(n=0) %}
+{% for g in per_endpoint_groups %}{% set per_ns.n = per_ns.n + (g.checks | length) %}{% endfor %}
+{% set per_count = per_ns.n %}
+
+<div class="checklist-toolbar">
+  <div class="check-filter-stats" aria-label="Filter by status">
+    {% for s in ['vulnerable','warning','passed','pending','failed','not applicable'] %}
+      {% set status_class = s | replace(' ', '_') %}
+      <div class="check-filter-stat f-{{ status_class }}" data-status="{{ s }}" role="button" tabindex="0" aria-pressed="false" title="Show only {{ s }} checks">
+        <div class="check-filter-stat-icon">{{ status_icon(s) }}</div>
+        <div class="check-filter-stat-num" data-count>0</div>
+        <div class="check-filter-stat-label">{{ s }}</div>
+      </div>
+    {% endfor %}
+  </div>
+  <span class="checklist-action-sep" aria-hidden="true"></span>
+  <div class="check-action-stats">
+    <button type="button" class="check-filter-stat check-action-stat" id="checklist-focused-toggle" aria-pressed="false" title="Show only focused checks">
+      <div class="check-filter-stat-icon">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </div>
+      <div class="check-filter-stat-label">Focused <span data-focused-count>0</span></div>
+    </button>
+    <button type="button" class="check-filter-stat check-action-stat" id="checklist-fold-toggle">
+      <div class="check-filter-stat-icon">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg>
+      </div>
+      <div class="check-filter-stat-label">Unfold all</div>
+    </button>
+    <button type="button" class="check-filter-stat check-action-stat" id="checklist-sort-toggle">
+      <div class="check-filter-stat-icon">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h12M4 12h8M4 18h4"/><path d="M18 8V20M18 20l-3-3M18 20l3-3"/></svg>
+      </div>
+      <div class="check-filter-stat-label">Sort</div>
+    </button>
+  </div>
+</div>
+
+<section class="panel checklist-panel">
+  <h2>Global checks <span class="muted small">{{ global_count }}</span></h2>
+
+  {% for group in global_groups %}
+    {% set group_focused = false %}
+    {% for item in group.checks %}
+      {% set r = item.results.get('_global', {}) %}
+      {% if r.status == 'focused' %}{% set group_focused = true %}{% endif %}
+    {% endfor %}
+    <details id="check-category-{{ group.id }}" class="check-category global-category {% if group_focused %}category-focused{% endif %}" data-category="global-{{ group.id }}" {% if group_focused %}open{% endif %}>
+      <summary class="check-category-head">
+        <span class="check-category-title">
+          <span class="check-category-icon">{{ category_icon(group.id) }}</span>
+          <span>{{ group.name }}</span>
+        </span>
+        <span class="muted small">{{ group.checks | length }} checks</span>
+      </summary>
+      <ul class="check-rows-list stage-steps">
+        {% for item in group.checks %}
+          {% set r = item.results.get('_global', {'status': 'pending', 'observations': '', 'evidence': []}) %}
+          {% set status_class = r.status | replace(' ', '_') %}
+          {% set is_focused = (r.status == 'focused') %}
+          {% set is_finished = r.get('finished') %}
+          {% set obs_text = r.observations or '' %}
+          {% set has_obs = obs_text | trim | length > 0 %}
+          {% set can_finish = (r.status not in ['pending', 'focused']) and has_obs and not is_finished %}
+          {% set desc = item.description or '' %}
+          {% set ex = item.examples or '' %}
+          <li id="check-{{ item.id }}" class="step-row check-row-li status-row-{{ status_class }} {% if is_focused %}check-focused{% endif %} {% if is_finished %}check-finished{% endif %}">
+            <div class="step-row-main check-row-main">
+              <strong class="check-row-title">{{ item.title }}</strong>
+              <span class="ctx-icons">
+                <button type="button" class="ctx-icon-svg check-row-ctx-toggle" aria-label="Description" data-tooltip="{{ desc or 'No description yet -- click to add' }}" data-empty="{{ 'true' if not desc else 'false' }}" data-target="check-context-{{ item.id }}">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M16 4v3h3"/><path d="M8 11h8M8 15h8M8 19h5"/></svg>
+                </button>
+                <button type="button" class="ctx-icon-svg check-row-ctx-toggle" aria-label="Examples" data-tooltip="{{ ex or 'No examples yet -- click to add' }}" data-empty="{{ 'true' if not ex else 'false' }}" data-target="check-context-{{ item.id }}">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 4 10.5c-.7.7-1 1.5-1 2.5H9c0-1-.3-1.8-1-2.5A6 6 0 0 1 12 3z"/></svg>
+                </button>
+              </span>
+              <form method="post" action="{{ url_for('web.update_check', check_id=item.id) }}" class="inline-form check-status-form">
+                <input type="hidden" name="return_to" value="checklist">
+                <input type="hidden" name="status" value="{{ r.status }}">
+              </form>
+              {# Unified state dropdown: 'focused' is the mandatory working state —
+                 you must claim a check (focus it) before recording any result.
+                 It is a real status now, so picking any option posts the status
+                 form; re-selecting 'focused' on a finished check reopens it. #}
+              <select aria-label="state" class="status status-{{ status_class }} status-select check-state-select" {% if is_finished %}title="Reopen via 'pending' to change"{% endif %}>
+                {% for s in ['focused','pending','failed','passed','warning','vulnerable','not applicable'] %}
+                  <option value="{{ s }}" {% if r.status == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+              <button type="button" class="step-notes-preview check-row-notes-toggle" aria-label="Edit observations" data-tooltip="{{ obs_text or 'No observations yet - click to add' }}" data-empty="{{ 'false' if has_obs else 'true' }}" aria-expanded="false">
+                <span class="step-notes-preview-text">{{ obs_text if has_obs else 'add observation' }}</span>
+              </button>
+              {% if r.evidence %}
+                <span class="check-row-evidence-icons">
+                  {% for ev in r.evidence %}
+                    <a class="ctx-icon-svg check-row-evidence-link" href="{{ url_for('web.download_check_evidence', check_id=item.id, evidence_id=ev.id) }}" data-tooltip="{{ ev.name }} ({{ ev.size }} bytes)" data-empty="false" aria-label="Download evidence {{ ev.name }}" download>
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </a>
+                  {% endfor %}
+                </span>
+              {% endif %}
+              {{ agent_tags(r.focused_by, r.done_by) }}
+              <form method="post" action="{{ url_for('web.finish_check', check_id=item.id) }}" class="inline-form">
+                <input type="hidden" name="return_to" value="checklist">
+                <button type="submit" class="ctx-icon-svg check-finish-btn" data-tooltip="{{ 'Already finished' if is_finished else ('Finish check' if can_finish else 'Set status (not pending) and add observations first') }}" data-empty="{{ 'false' if is_finished else 'true' }}" aria-label="Finish check" {% if not can_finish and not is_finished %}disabled{% endif %}>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                </button>
+              </form>
+              <button type="button" class="ctx-icon-svg check-row-upload-toggle" aria-label="Upload raw capture" data-tooltip="Upload raw 3rd-party tool output / screenshot / log" data-empty="true" aria-expanded="false">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </button>
+              {% if is_finished and r.get('ts') %}
+                <span class="done-at-stamp" title="Finished">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                  <span>{{ r.ts | fmt_dt }}</span>
+                </span>
+              {% endif %}
+            </div>
+            <div class="step-notes-editor check-row-notes-editor row-editor" hidden>
+              <form method="post" action="{{ url_for('web.update_check', check_id=item.id) }}" class="inline-form step-notes-form">
+                <input type="hidden" name="return_to" value="checklist">
+                <textarea name="observations" rows="3" class="step-notes-full" placeholder="What you tested, what you saw, what it means">{{ obs_text }}</textarea>
+                <button class="btn icon-btn" type="submit" title="Save observations" aria-label="Save observations">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
+                  </svg>
+                </button>
+              </form>
+            </div>
+            <div id="check-context-{{ item.id }}" class="check-row-context-editor row-editor" hidden>
+              <form method="post" action="{{ url_for('web.update_check_context', check_id=item.id) }}" class="form context-form">
+                <label><span>Description</span><textarea name="description" rows="3" placeholder="What this check is about, why it matters">{{ item.description or '' }}</textarea></label>
+                <label><span>Examples</span><textarea name="examples" rows="3" placeholder="Concrete examples, payloads, commands">{{ item.examples or '' }}</textarea></label>
+                <div class="actions"><button class="btn primary" type="submit">Save context</button></div>
+              </form>
+            </div>
+            <div class="check-row-evidence-upload row-editor" hidden>
+              <form method="post" action="{{ url_for('web.add_check_evidence', check_id=item.id) }}" class="inline-form check-row-evidence-form" enctype="multipart/form-data" title="Raw 3rd-party output only -- put your own summary in observations">
+                <input type="hidden" name="return_to" value="checklist">
+                <select name="source_type" required aria-label="Evidence source type">
+                  <option value="" disabled selected>raw capture source...</option>
+                  <option value="tool_output">tool output</option>
+                  <option value="screenshot">screenshot</option>
+                  <option value="log">log</option>
+                  <option value="raw_response">raw response</option>
+                  <option value="config">config</option>
+                  <option value="file_content">file content</option>
+                  <option value="other">other</option>
+                </select>
+                <label class="file-input-label btn small">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11.6l-9 9a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8.5-8.5"/></svg>
+                  <span class="file-input-text">Choose file</span>
+                  <input type="file" name="file" required>
+                </label>
+                <button class="btn small primary" type="submit">Upload raw capture</button>
+              </form>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% else %}
+    <p class="muted">No global checks.</p>
+  {% endfor %}
+</section>
+
+<section class="panel checklist-panel">
+  <h2>Endpoint checks <span class="muted small">{{ per_count }}</span></h2>
+  {% for group in per_endpoint_groups %}
+    <details id="check-category-per-{{ group.id }}" class="check-category" data-category="per-{{ group.id }}">
+      <summary class="check-category-head">
+        <span class="check-category-title">
+          <span class="check-category-icon">{{ category_icon(group.id) }}</span>
+          <span>{{ group.name }}</span>
+        </span>
+        <span class="muted small">{{ group.checks | length }} checks</span>
+      </summary>
+      <ul class="check-rows-list stage-steps">
+        {% for item in group.checks %}
+          {% set assigned_endpoints = [] %}
+          {% for a in project.endpoints %}
+            {% if item.id in (a.checks or []) %}{% set _ = assigned_endpoints.append(a) %}{% endif %}
+          {% endfor %}
+          {% set status_counts = {} %}
+          {% for a in assigned_endpoints %}
+            {% set ar = item.results.get(a.id, {'status': 'pending'}) %}
+            {% set _ = status_counts.update({ar.status: (status_counts.get(ar.status, 0) + 1)}) %}
+          {% endfor %}
+          {% set desc = item.description or '' %}
+          {% set ex = item.examples or '' %}
+          <li id="check-{{ item.id }}" class="step-row check-row-li check-per-endpoint-row">
+            <div class="step-row-main check-row-main">
+              <strong class="check-row-title">{{ item.title }}</strong>
+              <span class="ctx-icons">
+                <button type="button" class="ctx-icon-svg check-row-ctx-toggle" aria-label="Description" data-tooltip="{{ desc or 'No description yet -- click to add' }}" data-empty="{{ 'true' if not desc else 'false' }}" data-target="check-context-{{ item.id }}">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M16 4v3h3"/><path d="M8 11h8M8 15h8M8 19h5"/></svg>
+                </button>
+                <button type="button" class="ctx-icon-svg check-row-ctx-toggle" aria-label="Examples" data-tooltip="{{ ex or 'No examples yet -- click to add' }}" data-empty="{{ 'true' if not ex else 'false' }}" data-target="check-context-{{ item.id }}">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 4 10.5c-.7.7-1 1.5-1 2.5H9c0-1-.3-1.8-1-2.5A6 6 0 0 1 12 3z"/></svg>
+                </button>
+              </span>
+              <span class="check-per-endpoint-summary">
+                {% if assigned_endpoints %}
+                  <span class="muted small">{{ assigned_endpoints | length }} assigned</span>
+                  {% for s in ['vulnerable','warning','failed','passed','pending','not applicable'] %}
+                    {% if status_counts.get(s, 0) %}
+                      {% set sc = s | replace(' ', '_') %}
+                      <span class="status status-{{ sc }} count-pill">{{ status_counts[s] }} {{ s }}</span>
+                    {% endif %}
+                  {% endfor %}
+                {% else %}
+                  <span class="muted small">no endpoints assigned</span>
+                {% endif %}
+              </span>
+              <span class="check-per-endpoint-pills">
+                {% for a in assigned_endpoints %}
+                  {% set ar = item.results.get(a.id, {'status': 'pending'}) %}
+                  {% set sc = ar.status | replace(' ', '_') %}
+                  <a class="status status-{{ sc }} endpoint-link-pill" href="{{ url_for('web.endpoints') }}#endpoint-check-{{ item.id }}-{{ a.id }}" title="{{ ar.status }}">{{ a.name }}</a>
+                {% endfor %}
+              </span>
+            </div>
+            <div id="check-context-{{ item.id }}" class="check-row-context-editor row-editor" hidden>
+              <form method="post" action="{{ url_for('web.update_check_context', check_id=item.id) }}" class="form context-form">
+                <label><span>Description</span><textarea name="description" rows="3" placeholder="What this check is about, why it matters">{{ item.description or '' }}</textarea></label>
+                <label><span>Examples</span><textarea name="examples" rows="3" placeholder="Concrete examples, payloads, commands">{{ item.examples or '' }}</textarea></label>
+                <div class="actions"><button class="btn primary" type="submit">Save context</button></div>
+              </form>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% else %}
+    <p class="muted">No endpoint checks.</p>
+  {% endfor %}
+</section>
+<script>
+  (function () {
+    const storageKey = 'pg-checklist-open-categories:{{ project.id }}';
+    const categories = Array.from(document.querySelectorAll('.check-category'));
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+    } catch (e) {
+      saved = null;
+    }
+    if (Array.isArray(saved)) {
+      categories.forEach(function (category) {
+        category.open = saved.includes(category.dataset.category);
+      });
+    }
+    const sortButton = document.getElementById('checklist-sort-toggle');
+    const foldButton = document.getElementById('checklist-fold-toggle');
+    const statusRank = {
+      vulnerable: 0,
+      warning: 1,
+      passed: 2,
+      pending: 3,
+      failed: 4,
+      'not applicable': 5
+    };
+
+    // Every check is an <li>. A global check carries a single status as a
+    // status-row-X class; an endpoint check has no single status, so we read
+    // the statuses off its count pills ("3 vulnerable" -> "vulnerable").
+    function liStatuses(li) {
+      if (li.classList.contains('check-per-endpoint-row')) {
+        const out = [];
+        li.querySelectorAll('.count-pill').forEach(function (el) {
+          const s = el.textContent.trim().toLowerCase().replace(/^\d+\s+/, '');
+          if (s) out.push(s);
+        });
+        return out;
+      }
+      const statusClass = Array.from(li.classList).find(function (c) {
+        return c.indexOf('status-row-') === 0;
+      });
+      return [statusClass
+        ? statusClass.slice('status-row-'.length).replace(/_/g, ' ')
+        : 'pending'];
+    }
+
+    function liRank(li) {
+      const statuses = liStatuses(li);
+      if (!statuses.length) return statusRank.pending;
+      return Math.min.apply(null, statuses.map(function (status) {
+        return statusRank[status] === undefined ? statusRank.pending : statusRank[status];
+      }));
+    }
+
+    // Findings-style status filter: each count panel is an include toggle. Click
+    // any number of them to show only rows containing those statuses. With none
+    // selected — or every panel selected — everything shows (no effective filter).
+    const filterStats = Array.from(document.querySelectorAll('.check-filter-stat[data-status]'));
+    const filterRows = Array.from(document.querySelectorAll('li.check-row-li'));
+    const selected = {};
+    // Orthogonal "focused only" toggle: when on, restrict to rows the operator
+    // is actively working (a focused global-check carries .check-focused), on top
+    // of whatever status filter is active.
+    const focusedToggle = document.getElementById('checklist-focused-toggle');
+    let focusedOnly = false;
+
+    filterStats.forEach(function (stat) {
+      const s = stat.dataset.status;
+      const n = filterRows.filter(function (li) { return liStatuses(li).indexOf(s) !== -1; }).length;
+      const numEl = stat.querySelector('.check-filter-stat-num');
+      if (numEl) numEl.textContent = n;
+    });
+
+    const focusedRows = filterRows.filter(function (li) { return li.classList.contains('check-focused'); });
+    if (focusedToggle) {
+      const numEl = focusedToggle.querySelector('[data-focused-count]');
+      if (numEl) numEl.textContent = focusedRows.length;
+    }
+
+    function applyFilters() {
+      const on = filterStats.filter(function (stat) { return selected[stat.dataset.status]; });
+      const statusFiltering = on.length > 0 && on.length < filterStats.length;
+      filterRows.forEach(function (li) {
+        let show = true;
+        if (statusFiltering) {
+          show = on.some(function (stat) {
+            return liStatuses(li).indexOf(stat.dataset.status) !== -1;
+          });
+        }
+        if (show && focusedOnly) {
+          show = li.classList.contains('check-focused');
+        }
+        li.hidden = !show;
+      });
+      // Hide categories that have zero visible rows under the active filter.
+      const filtering = statusFiltering || focusedOnly;
+      document.querySelectorAll('.check-category').forEach(function (cat) {
+        if (!filtering) { cat.hidden = false; return; }
+        cat.hidden = cat.querySelectorAll('li.check-row-li:not([hidden])').length === 0;
+      });
+    }
+
+    if (focusedToggle) {
+      focusedToggle.addEventListener('click', function () {
+        focusedOnly = !focusedOnly;
+        focusedToggle.classList.toggle('active', focusedOnly);
+        focusedToggle.setAttribute('aria-pressed', focusedOnly ? 'true' : 'false');
+        applyFilters();
+        saveFilters();
+      });
+    }
+
+    function toggleStat(stat) {
+      const s = stat.dataset.status;
+      selected[s] = !selected[s];
+      stat.classList.toggle('filtered', selected[s]);
+      stat.setAttribute('aria-pressed', selected[s] ? 'true' : 'false');
+      applyFilters();
+      saveFilters();
+    }
+
+    filterStats.forEach(function (stat) {
+      stat.addEventListener('click', function () { toggleStat(stat); });
+      stat.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleStat(stat); }
+      });
+    });
+
+    // Unified state dropdown on each global check. 'focused' is now a real
+    // status like the rest, so every option posts the status form. Focus is
+    // mandatory before a result: the server rejects a result status until the
+    // check has been focused (the dropdown reflects the choice after reload).
+    document.querySelectorAll('.check-state-select').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        var li = sel.closest('li');
+        if (!li) return;
+        var sf = li.querySelector('.check-status-form');
+        if (!sf) return;
+        var input = sf.querySelector('input[name=status]');
+        if (input) input.value = sel.value;
+        sf.submit();
+      });
+    });
+
+    document.querySelectorAll('.check-row-notes-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var li = btn.closest('li');
+        if (!li) return;
+        var editor = li.querySelector('.check-row-notes-editor');
+        if (!editor) return;
+        var open = !editor.hidden;
+        editor.hidden = open;
+        btn.setAttribute('aria-expanded', String(!open));
+        if (!open) {
+          var ta = editor.querySelector('textarea');
+          if (ta) ta.focus();
+        }
+      });
+    });
+
+    document.querySelectorAll('.check-row-ctx-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var targetId = btn.dataset.target;
+        if (!targetId) return;
+        var editor = document.getElementById(targetId);
+        if (!editor) return;
+        var open = !editor.hidden;
+        editor.hidden = open;
+        btn.setAttribute('aria-expanded', String(!open));
+        if (!open) {
+          var ta = editor.querySelector('textarea');
+          if (ta) ta.focus();
+        }
+      });
+    });
+
+    document.querySelectorAll('.check-row-upload-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var li = btn.closest('li');
+        if (!li) return;
+        var panel = li.querySelector('.check-row-evidence-upload');
+        if (!panel) return;
+        var open = !panel.hidden;
+        panel.hidden = open;
+        btn.setAttribute('aria-expanded', String(!open));
+      });
+    });
+
+    document.querySelectorAll('.file-input-label input[type=file]').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var label = input.closest('.file-input-label');
+        if (!label) return;
+        var span = label.querySelector('.file-input-text');
+        if (!span) return;
+        if (input.files && input.files.length) {
+          span.textContent = input.files[0].name;
+        } else {
+          span.textContent = 'Choose file';
+        }
+      });
+    });
+
+    function saveOpenCategories() {
+      const openCategories = categories
+        .filter(function (item) { return item.open; })
+        .map(function (item) { return item.dataset.category; });
+      localStorage.setItem(storageKey, JSON.stringify(openCategories));
+    }
+
+    function syncFoldButton() {
+      const allOpen = categories.length > 0 && categories.every(function (category) {
+        return category.open;
+      });
+      foldButton.classList.toggle('active', allOpen);
+      foldButton.querySelector('.check-filter-stat-label').textContent = allOpen ? 'Fold all' : 'Unfold all';
+    }
+
+    categories.forEach(function (category) {
+      category.addEventListener('toggle', function () {
+        saveOpenCategories();
+        syncFoldButton();
+      });
+    });
+
+    document.querySelectorAll('ul.check-rows-list').forEach(function (list) {
+      Array.from(list.querySelectorAll(':scope > li.check-row-li')).forEach(function (li, index) {
+        li.dataset.originalIndex = index;
+      });
+    });
+
+    foldButton.addEventListener('click', function () {
+      const shouldOpen = categories.some(function (category) {
+        return !category.open;
+      });
+      categories.forEach(function (category) {
+        category.open = shouldOpen;
+      });
+      saveOpenCategories();
+      syncFoldButton();
+    });
+
+    function runSort(toSorted) {
+      document.querySelectorAll('ul.check-rows-list').forEach(function (list) {
+        const items = Array.from(list.querySelectorAll(':scope > li.check-row-li')).sort(function (a, b) {
+          const aIndex = Number(a.dataset.originalIndex);
+          const bIndex = Number(b.dataset.originalIndex);
+          if (!toSorted) return aIndex - bIndex;
+          return liRank(a) - liRank(b) || aIndex - bIndex;
+        });
+        items.forEach(function (li) {
+          list.appendChild(li);
+        });
+      });
+      sortButton.dataset.sorted = toSorted ? 'true' : 'false';
+      sortButton.classList.toggle('active', toSorted);
+      sortButton.querySelector('.check-filter-stat-label').textContent = toSorted ? 'Unsort' : 'Sort';
+      applyFilters();
+    }
+
+    sortButton.addEventListener('click', function () {
+      runSort(sortButton.dataset.sorted !== 'true');
+      saveFilters();
+    });
+
+    // Persist the status filter, "focused only" toggle and sort across reloads.
+    // The live poll does a full page reload whenever the agent changes a status
+    // or observation via the API; without this the operator's active filter would
+    // be wiped on every such reload. Keyed by project, like the fold state above.
+    const filterKey = 'pg-checklist-filter:{{ project.id }}';
+    function saveFilters() {
+      try {
+        localStorage.setItem(filterKey, JSON.stringify({
+          statuses: filterStats
+            .filter(function (stat) { return selected[stat.dataset.status]; })
+            .map(function (stat) { return stat.dataset.status; }),
+          focusedOnly: focusedOnly,
+          sorted: sortButton.dataset.sorted === 'true'
+        }));
+      } catch (e) { /* localStorage may be unavailable */ }
+    }
+    function restoreFilters() {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(filterKey) || 'null'); }
+      catch (e) { saved = null; }
+      if (!saved) return;
+      if (Array.isArray(saved.statuses)) {
+        saved.statuses.forEach(function (s) { selected[s] = true; });
+        filterStats.forEach(function (stat) {
+          const on = !!selected[stat.dataset.status];
+          stat.classList.toggle('filtered', on);
+          stat.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
+      if (saved.focusedOnly && focusedToggle) {
+        focusedOnly = true;
+        focusedToggle.classList.add('active');
+        focusedToggle.setAttribute('aria-pressed', 'true');
+      }
+      // runSort() also applies the status/focused filter; call applyFilters
+      // directly only when we're not sorting.
+      if (saved.sorted) runSort(true); else applyFilters();
+    }
+    restoreFilters();
+
+    syncFoldButton();
+  })();
+</script>
+{% endblock %}

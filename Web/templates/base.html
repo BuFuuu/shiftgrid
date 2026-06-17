@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block full_title %}{% block title %}Home{% endblock %} - ShiftGrid{% endblock %}</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='color-concept-7') }}">
+  <script>
+    (function () {
+      const stored = localStorage.getItem('pg-theme');
+      if (stored) document.documentElement.setAttribute('data-theme', stored);
+    })();
+  </script>
+  <script src="{{ url_for('static', filename='live.js', v='tooltip-bold-1') }}" defer></script>
+</head>
+<body>
+  <div class="brand">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="ShiftGrid" class="brand-logo">
+    <span class="brand-name">ShiftGrid</span>
+  </div>
+  <div class="floating-controls">
+    <button type="button" id="ui-style-toggle" class="theme-toggle style-toggle" aria-label="Toggle UI language style">Plain</button>
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+      <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <div class="body-wrap">
+    {% with msgs = get_flashed_messages() %}
+      {% if msgs %}
+        <div class="flash-popup-backdrop" id="flash-popup">
+          <div class="flash-popup" role="alertdialog" aria-modal="true" aria-labelledby="flash-popup-title">
+            <div class="flash-popup-head">
+              <svg class="flash-popup-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16.5" r="1.1" fill="currentColor"/></svg>
+              <span class="flash-popup-title" id="flash-popup-title">Something went wrong</span>
+              <button type="button" class="flash-popup-copy" id="flash-popup-copy" aria-label="Copy message">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 15V5a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+                <span class="flash-popup-copy-label">Copy</span>
+              </button>
+            </div>
+            <pre class="flash-popup-body" id="flash-popup-body">{% for m in msgs %}{{ m }}{% if not loop.last %}
+
+{% endif %}{% endfor %}</pre>
+            <div class="flash-popup-actions"><button type="button" class="btn primary" id="flash-popup-ok">OK</button></div>
+          </div>
+        </div>
+        <script>
+          (function () {
+            var bd = document.getElementById('flash-popup');
+            if (!bd) return;
+            function close() { bd.remove(); }
+            var ok = document.getElementById('flash-popup-ok');
+            if (ok) { ok.addEventListener('click', close); ok.focus(); }
+            var copy = document.getElementById('flash-popup-copy');
+            var body = document.getElementById('flash-popup-body');
+            if (copy && body) {
+              copy.addEventListener('click', function () {
+                var text = body.textContent;
+                var label = copy.querySelector('.flash-popup-copy-label');
+                function flash() {
+                  if (label) label.textContent = 'Copied';
+                  copy.classList.add('is-copied');
+                  setTimeout(function () {
+                    if (label) label.textContent = 'Copy';
+                    copy.classList.remove('is-copied');
+                  }, 1400);
+                }
+                function fallback() {
+                  var ta = document.createElement('textarea');
+                  ta.value = text;
+                  ta.style.position = 'fixed';
+                  ta.style.opacity = '0';
+                  document.body.appendChild(ta);
+                  ta.select();
+                  try { document.execCommand('copy'); flash(); } catch (e) {}
+                  document.body.removeChild(ta);
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(text).then(flash, fallback);
+                } else {
+                  fallback();
+                }
+              });
+            }
+            bd.addEventListener('click', function (e) { if (e.target === bd) close(); });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+          })();
+        </script>
+      {% endif %}
+    {% endwith %}
+    {% block body %}{% endblock %}
+  </div>
+  <script>
+    const uiStyleNames = ['plain', 'pirate', 'bandit'];
+    const uiStyleLabels = {
+      pirate: {
+        'New project': 'New voyage',
+        'Open existing': 'Board saved voyage',
+        'Name': 'Name',
+        'Workflow': 'Voyage',
+        'Scope': 'Waters',
+        'Initial endpoints': 'Starting loot',
+        'Project folder location': 'Treasure map location',
+        'Project folder path': 'Treasure map path',
+        'Create': 'Set sail',
+        'Open': 'Come aboard',
+        'Checklist': 'Ship log',
+        'Endpoints': 'Loot',
+        'Findings': 'Marks',
+        'Save': 'Stow',
+        'Save scope': 'Chart waters',
+        'Lock scope': 'Seal chart',
+        'Target context': 'Target tale',
+        'Initial information': 'First tale',
+        'Context': 'Tale',
+        'Notes': 'Notes',
+        'Save context': 'Stow tale',
+        'Credentials': 'Keys',
+        'Username': 'Deck name',
+        'Password': 'Secret word',
+        'Add credential': 'Add key',
+        'Remove': 'Toss overboard',
+        'Add endpoint': 'Add loot',
+        'Save endpoint': 'Stow loot',
+        'Remove endpoint': 'Ditch loot',
+        'Add finding': 'Add mark',
+        'Title': 'Title',
+        'Severity': 'Threat',
+        'Description': 'Tale',
+        'Create finding': 'Mark it',
+        'Delete finding': 'Sink mark',
+        'Advance phase': 'Sail onward',
+        'skip optional': 'skip side quests',
+        'optional': 'optional',
+        'free': 'free',
+        'Edit': 'Tend',
+        'Status': 'Standing',
+        'Upload evidence': 'Hoist proof',
+        'No checks.': 'No log entries.',
+        'No endpoints yet.': 'No loot yet.',
+        'No findings recorded.': 'No marks recorded.',
+        'No credentials saved.': 'No keys saved.'
+      },
+      bandit: {
+        'New project': 'New job',
+        'Open existing': 'Open stash',
+        'Name': 'Alias',
+        'Workflow': 'Route',
+        'Scope': 'Turf',
+        'Initial endpoints': 'Starting haul',
+        'Project folder location': 'Hideout location',
+        'Project folder path': 'Hideout path',
+        'Create': 'Start the job',
+        'Open': 'Ride out',
+        'Checklist': 'Job list',
+        'Endpoints': 'Haul',
+        'Findings': 'Bounties',
+        'Save': 'Stash',
+        'Save scope': 'Mark turf',
+        'Lock scope': 'Claim turf',
+        'Target context': 'Target intel',
+        'Initial information': 'First intel',
+        'Context': 'Intel',
+        'Notes': 'Notes',
+        'Save context': 'Stash intel',
+        'Credentials': 'Keys',
+        'Username': 'Handle',
+        'Password': 'Passcode',
+        'Add credential': 'Add key',
+        'Remove': 'Drop',
+        'Add endpoint': 'Add haul',
+        'Save endpoint': 'Stash haul',
+        'Remove endpoint': 'Drop haul',
+        'Add finding': 'Add bounty',
+        'Title': 'Title',
+        'Severity': 'Heat',
+        'Description': 'Intel',
+        'Create finding': 'Post bounty',
+        'Delete finding': 'Clear bounty',
+        'Advance phase': 'Move out',
+        'skip optional': 'skip side jobs',
+        'optional': 'optional',
+        'free': 'free',
+        'Edit': 'Tune',
+        'Status': 'State',
+        'Upload evidence': 'Stash proof',
+        'No checks.': 'No job items.',
+        'No endpoints yet.': 'No haul yet.',
+        'No findings recorded.': 'No bounties recorded.',
+        'No credentials saved.': 'No keys saved.'
+      }
+    };
+
+    // Style fonts (Pirata One / Rye) are bundled locally via @font-face in
+    // style.css, so there's nothing to fetch — the browser loads each face the
+    // first time a styled surface uses it.
+    let uiStyleApplied = false;
+    function setUiStyle(style) {
+      const labels = uiStyleLabels[style] || {};
+      document.documentElement.setAttribute('data-ui-style', style);
+      // Fast path: plain English on first load. The server already renders plain
+      // text, so there's nothing to translate — skip the DOM walk entirely.
+      if (!uiStyleApplied && Object.keys(labels).length === 0) {
+        document.getElementById('ui-style-toggle').textContent = style[0].toUpperCase() + style.slice(1);
+        localStorage.setItem('pg-ui-style', style);
+        uiStyleApplied = true;
+        return;
+      }
+      uiStyleApplied = true;
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode: function (node) {
+          if (!node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+          if (node.parentElement.closest('script, style, svg')) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(function (node) {
+        if (!node.plainText) node.plainText = node.textContent.trim();
+        const replacement = labels[node.plainText] || node.plainText;
+        node.textContent = node.textContent.replace(node.textContent.trim(), replacement);
+      });
+      document.getElementById('ui-style-toggle').textContent = style[0].toUpperCase() + style.slice(1);
+      localStorage.setItem('pg-ui-style', style);
+    }
+
+    document.getElementById('theme-toggle').addEventListener('click', function () {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('pg-theme', next);
+    });
+    document.getElementById('ui-style-toggle').addEventListener('click', function () {
+      const current = localStorage.getItem('pg-ui-style') || 'plain';
+      const next = uiStyleNames[(uiStyleNames.indexOf(current) + 1) % uiStyleNames.length];
+      setUiStyle(next);
+    });
+    setUiStyle(localStorage.getItem('pg-ui-style') || 'plain');
+  </script>
+</body>
+</html>

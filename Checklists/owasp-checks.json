@@ -1,0 +1,188 @@
+{
+  "id": "owasp-checks",
+  "name": "Top OWASP Checks",
+  "items": [
+    {
+      "id": "quick_security_headers",
+      "title": "Missing security headers",
+      "category": "quick_config",
+      "category_name": "Quick Config Checks",
+      "scope": "global",
+      "description": "Check responses for missing or weak security headers: HSTS, Content-Security-Policy, X-Content-Type-Options, X-Frame-Options and Referrer-Policy. A fast signal of how well the app is hardened overall.",
+      "examples": "curl -skI https://target.com | grep -iE 'strict-transport|content-security|x-frame|x-content-type'\nnikto -h https://target.com\nPaste the host into securityheaders.com"
+    },
+    {
+      "id": "quick_cookie_flags",
+      "title": "Insecure cookie flags",
+      "category": "quick_config",
+      "category_name": "Quick Config Checks",
+      "scope": "global",
+      "description": "Inspect Set-Cookie headers on session and auth cookies for HttpOnly, Secure and SameSite. Missing flags expose tokens to theft via XSS or leakage, and weaken CSRF defences.",
+      "examples": "curl -skI https://target.com/login | grep -i set-cookie\nBrowser DevTools > Application > Cookies"
+    },
+    {
+      "id": "quick_exposed_files",
+      "title": "Exposed sensitive files",
+      "category": "quick_config",
+      "category_name": "Quick Config Checks",
+      "scope": "global",
+      "description": "Probe for files that should not be public: .git/, .env, backups, robots.txt entries, server-status and framework consoles. Quick to check and often high impact.",
+      "examples": "curl -s https://target.com/.git/HEAD\nffuf -u https://target.com/FUZZ -w SecLists/Discovery/Web-Content/common.txt -mc 200\nnuclei -t exposures -u https://target.com"
+    },
+    {
+      "id": "quick_verbose_errors",
+      "title": "Verbose errors / debug mode",
+      "category": "quick_config",
+      "category_name": "Quick Config Checks",
+      "scope": "global",
+      "description": "Trigger error conditions and look for stack traces, framework debug pages, version banners or internal paths in responses. These leak information that fuels later attacks.",
+      "examples": "curl -sk \"https://target.com/?id=%27\"\nSend malformed JSON to an API endpoint\ncurl -skI https://target.com | grep -iE 'server|x-powered-by'"
+    },
+
+    {
+      "id": "auth_weak_authentication",
+      "title": "Weak authentication",
+      "category": "auth_failures",
+      "category_name": "Authentication & Sessions",
+      "scope": "global",
+      "description": "Assess login security app-wide: password policy, brute-force/lockout protection, MFA on sensitive roles, username enumeration and default or shared accounts. Maps to OWASP A07.",
+      "examples": "hydra -l admin -P rockyou.txt target.com http-post-form \"/login:user=^USER^&pass=^PASS^:invalid\"\nCompare login error messages for valid vs invalid users\nFire 100 bad logins, watch for lockout"
+    },
+    {
+      "id": "auth_session_management",
+      "title": "Session management flaws",
+      "category": "auth_failures",
+      "category_name": "Authentication & Sessions",
+      "scope": "global",
+      "description": "Review session token strength, fixation, lifetime, logout invalidation and reuse after a password change. Tokens should rotate on login and be killed on logout.",
+      "examples": "Capture tokens in Burp; reuse one after logout\nBurp Sequencer for token entropy\nCheck if the pre-login token survives authentication (fixation)"
+    },
+    {
+      "id": "crypto_transport_failures",
+      "title": "Cryptographic / TLS failures",
+      "category": "crypto_failures",
+      "category_name": "Cryptographic Failures",
+      "scope": "global",
+      "description": "Check transport and data protection: TLS versions and ciphers, certificate validity, HTTP-to-HTTPS redirection, and sensitive data sent or stored in clear. Maps to OWASP A02.",
+      "examples": "testssl.sh https://target.com\nsslscan target.com\nnmap --script ssl-enum-ciphers -p 443 target.com"
+    },
+    {
+      "id": "components_outdated",
+      "title": "Vulnerable components",
+      "category": "components",
+      "category_name": "Vulnerable & Outdated Components",
+      "scope": "global",
+      "description": "Fingerprint server, framework and library versions and map them to known CVEs. Outdated components are a frequent breach entry point. Maps to OWASP A06.",
+      "examples": "whatweb https://target.com\nnmap -sV --script vuln target.com\nnuclei -t cves -u https://target.com\nretire.js against the app's JavaScript"
+    },
+    {
+      "id": "design_business_logic",
+      "title": "Business logic flaws",
+      "category": "insecure_design",
+      "category_name": "Insecure Design & Abuse",
+      "scope": "global",
+      "description": "Hunt logic abuse scanners miss: workflow/step bypass, price or quantity tampering, race conditions, request replay and skipped approval steps. Maps to OWASP A04 (Insecure Design).",
+      "examples": "Replay a purchase in Burp Repeater with a tampered total\nSet a negative quantity or price\nTurbo Intruder to race a coupon redemption"
+    },
+    {
+      "id": "design_rate_limiting",
+      "title": "Missing rate limiting",
+      "category": "insecure_design",
+      "category_name": "Insecure Design & Abuse",
+      "scope": "global",
+      "description": "Confirm sensitive actions (login, OTP, password reset, costly API calls) enforce rate limits. Their absence enables brute force, enumeration and resource-exhaustion abuse.",
+      "examples": "ffuf -u https://target.com/api/login -w passwords.txt -d '{\"user\":\"a\",\"pass\":\"FUZZ\"}' -mc all\nWatch for 429 / Retry-After responses under bursts"
+    },
+    {
+      "id": "integrity_supply_chain",
+      "title": "Software/data integrity",
+      "category": "integrity_logging",
+      "category_name": "Integrity, Logging & Monitoring",
+      "scope": "global",
+      "description": "Check for unsigned updates, unsafe deserialization, CI/CD or dependency trust gaps, and third-party scripts loaded without Subresource Integrity. Maps to OWASP A08.",
+      "examples": "Review <script src> tags for missing integrity= attributes\nInspect any auto-update mechanism\nysoserial to craft deserialization PoCs"
+    },
+    {
+      "id": "logging_monitoring_gaps",
+      "title": "Logging & monitoring gaps",
+      "category": "integrity_logging",
+      "category_name": "Integrity, Logging & Monitoring",
+      "scope": "global",
+      "description": "Assess whether security events (logins, failures, access denials) are logged and alertable and whether an attack would be noticed. Hard to prove externally; confirm with the client. Maps to OWASP A09.",
+      "examples": "Ask whether failed logins are logged and alerted\nLook for audit trails on sensitive actions\nNote any absence of lockout or anomaly alerting"
+    },
+
+    {
+      "id": "access_idor",
+      "title": "IDOR / broken object access",
+      "category": "access_control",
+      "category_name": "Broken Access Control",
+      "scope": "per_endpoint",
+      "description": "For object references this endpoint exposes, swap in other users' IDs and tamper identifiers to reach data you should not. The core of Broken Access Control. Maps to OWASP A01.",
+      "examples": "curl https://target.com/api/orders/1002 -H 'Cookie: <userA-session>'\nBurp Autorize extension\nSwap sequential IDs and UUIDs in the request"
+    },
+    {
+      "id": "access_function_level_authz",
+      "title": "Missing function-level authz",
+      "category": "access_control",
+      "category_name": "Broken Access Control",
+      "scope": "per_endpoint",
+      "description": "Test whether this endpoint enforces role checks. Hit it unauthenticated and as a low-privileged user, attempt admin-only actions, and try forced browsing to it.",
+      "examples": "Replay an admin request using a normal user's cookie\ncurl -X POST https://target.com/admin/users   # unauthenticated\nBurp Autorize across roles"
+    },
+    {
+      "id": "injection_sqli",
+      "title": "SQL injection",
+      "category": "injection",
+      "category_name": "Injection",
+      "scope": "per_endpoint",
+      "description": "Inject SQL metacharacters and payloads into this endpoint's parameters, headers and body. Watch for database errors, boolean/time-based differences or data leakage. Part of OWASP A03.",
+      "examples": "sqlmap -u 'https://target.com/item?id=1' --cookie='<session>' --batch\nManual: ' OR 1=1-- -\nTime-based: 1 AND SLEEP(5)"
+    },
+    {
+      "id": "injection_command",
+      "title": "OS command injection",
+      "category": "injection",
+      "category_name": "Injection",
+      "scope": "per_endpoint",
+      "description": "Where input on this endpoint may reach a shell, inject command separators and confirm execution via output or response timing. Part of OWASP A03.",
+      "examples": "Payloads: ; id   | whoami   $(sleep 5)\nffuf with a command-injection wordlist\nConfirm blind cases out-of-band with interactsh"
+    },
+    {
+      "id": "injection_path_traversal",
+      "title": "Path traversal / LFI",
+      "category": "injection",
+      "category_name": "Injection",
+      "scope": "per_endpoint",
+      "description": "On endpoints taking a file or path parameter, use directory-traversal sequences to read files outside the web root or include local files.",
+      "examples": "curl 'https://target.com/download?f=../../../../etc/passwd'\nEncoded: ..%2f..%2f\nffuf with an LFI/traversal wordlist"
+    },
+    {
+      "id": "xss_injection",
+      "title": "Cross-site scripting (XSS)",
+      "category": "cross_site",
+      "category_name": "Cross-Site Attacks",
+      "scope": "per_endpoint",
+      "description": "Inject script payloads into this endpoint's parameters and stored fields. Check reflection in HTML, attribute and JS contexts and whether the payload executes.",
+      "examples": "Payload: \"><script>alert(1)</script>\ndalfox url https://target.com/?q=FUZZ\nVerify stored payloads in the rendered page"
+    },
+    {
+      "id": "csrf_missing",
+      "title": "CSRF protection missing",
+      "category": "cross_site",
+      "category_name": "Cross-Site Attacks",
+      "scope": "per_endpoint",
+      "description": "For state-changing requests on this endpoint, check for an unpredictable anti-CSRF token and SameSite cookies. Replay the action cross-origin without the token.",
+      "examples": "Remove or replay the CSRF token in Burp Repeater\nBuild a test HTML form auto-posting to the endpoint\nCheck SameSite on the session cookie"
+    },
+    {
+      "id": "ssrf",
+      "title": "Server-side request forgery",
+      "category": "ssrf",
+      "category_name": "Server-Side Request Forgery",
+      "scope": "per_endpoint",
+      "description": "Where this endpoint fetches a URL or resource, point it at internal addresses or an out-of-band host to prove the server makes attacker-controlled requests. Maps to OWASP A10.",
+      "examples": "url=http://169.254.169.254/latest/meta-data/\nurl=http://<interactsh-id>.oast.fun\nTest open-redirect chains and DNS rebinding"
+    }
+  ]
+}

@@ -1,0 +1,339 @@
+{% extends "project_base.html" %}
+{% block title %}Findings - {{ project.name }}{% endblock %}
+{% block content_class %}findings-content{% endblock %}
+{% block page_subtitle %}<span class="page-header-subtitle">{{ project.findings | length }} total</span>{% endblock %}
+{% block content %}
+
+{% macro severity_icon(sev) -%}
+{% if sev == 'critical' %}
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2l10 18H2L12 2z" fill="currentColor" opacity="0.15"/><path d="M12 2l10 18H2L12 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 9v5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.2" fill="currentColor"/></svg>
+{% elif sev == 'high' %}
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="currentColor" opacity="0.15"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/></svg>
+{% elif sev == 'medium' %}
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3" fill="currentColor" opacity="0.15"/><rect x="3" y="3" width="18" height="18" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/></svg>
+{% elif sev == 'low' %}
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="currentColor" opacity="0.15"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12l3 3 5-6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+{% else %}
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="currentColor" opacity="0.15"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="7.5" r="1.2" fill="currentColor"/></svg>
+{% endif %}
+{%- endmacro %}
+
+<div class="floating-advance">
+  <button type="button" class="btn primary" id="add-finding-btn">+ Add finding</button>
+  {% if project.findings %}
+  <div class="floating-export">
+    <button type="button" class="btn primary floating-export-btn" id="findings-export-btn" aria-haspopup="true" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export
+    </button>
+    <div class="floating-export-menu" id="findings-export-menu" hidden>
+      <a href="{{ url_for('web.export_findings', format='csv') }}" download>CSV</a>
+      <a href="{{ url_for('web.export_findings', format='json') }}" download>JSON</a>
+      <a href="{{ url_for('web.export_findings', format='md') }}" download>Markdown</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="endpoint-modal-backdrop" id="add-finding-modal" hidden>
+  <div class="endpoint-modal" role="dialog" aria-modal="true" aria-labelledby="add-finding-title">
+    <div class="endpoint-modal-head">
+      <h2 id="add-finding-title">New finding</h2>
+      <button type="button" class="endpoint-modal-close" id="add-finding-close" aria-label="Close">&times;</button>
+    </div>
+    <form method="post" action="{{ url_for('web.add_finding') }}" class="form endpoint-modal-form">
+      <div class="finding-form-grid">
+        <label><span>Title</span><input type="text" name="title" required placeholder="e.g. SQL injection in /login"></label>
+        <label>
+          <span>Severity</span>
+          <select name="severity" class="severity-select">
+            <option value="info">Info</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high" selected>High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </label>
+      </div>
+      <label><span>Description</span><textarea name="description" rows="5" placeholder="Impact, reproduction steps, references, affected endpoints..."></textarea></label>
+      <label><span>Recommendation</span><textarea name="recommendation" rows="4" placeholder="How to remediate: the fix, mitigations, references..."></textarea></label>
+      <div class="actions"><button class="btn primary" type="submit">Create finding</button></div>
+    </form>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('findings-export-btn');
+    var menu = document.getElementById('findings-export-menu');
+    if (btn && menu) {
+      var closeMenu = function () { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = menu.hidden;
+        menu.hidden = !open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      document.addEventListener('click', closeMenu);
+      menu.addEventListener('click', function () { setTimeout(closeMenu, 0); });
+    }
+    var openBtn = document.getElementById('add-finding-btn');
+    var modal = document.getElementById('add-finding-modal');
+    var closeBtn = document.getElementById('add-finding-close');
+    if (openBtn && modal) {
+      var open = function () { modal.hidden = false; var f = modal.querySelector('input, textarea, select'); if (f) f.focus(); };
+      var close = function () { modal.hidden = true; };
+      openBtn.addEventListener('click', open);
+      if (closeBtn) closeBtn.addEventListener('click', close);
+      modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) close(); });
+    }
+  })();
+</script>
+
+{% set sev_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3, 'info': 4} %}
+{% set counts = namespace(critical=0, high=0, medium=0, low=0, info=0) %}
+{% for f in project.findings %}
+  {% set sev = (f.severity or 'info') | lower %}
+  {% if sev == 'critical' %}{% set counts.critical = counts.critical + 1 %}{% endif %}
+  {% if sev == 'high' %}{% set counts.high = counts.high + 1 %}{% endif %}
+  {% if sev == 'medium' %}{% set counts.medium = counts.medium + 1 %}{% endif %}
+  {% if sev == 'low' %}{% set counts.low = counts.low + 1 %}{% endif %}
+  {% if sev == 'info' %}{% set counts.info = counts.info + 1 %}{% endif %}
+{% endfor %}
+
+<section class="findings-summary">
+  <div class="sev-stat severity-critical" data-sev="critical" role="button" tabindex="0" aria-pressed="false" title="Show only critical findings"><div class="sev-stat-icon">{{ severity_icon('critical') }}</div><div class="sev-stat-num">{{ counts.critical }}</div><div class="sev-stat-label">Critical</div></div>
+  <div class="sev-stat severity-high" data-sev="high" role="button" tabindex="0" aria-pressed="false" title="Show only high findings"><div class="sev-stat-icon">{{ severity_icon('high') }}</div><div class="sev-stat-num">{{ counts.high }}</div><div class="sev-stat-label">High</div></div>
+  <div class="sev-stat severity-medium" data-sev="medium" role="button" tabindex="0" aria-pressed="false" title="Show only medium findings"><div class="sev-stat-icon">{{ severity_icon('medium') }}</div><div class="sev-stat-num">{{ counts.medium }}</div><div class="sev-stat-label">Medium</div></div>
+  <div class="sev-stat severity-low" data-sev="low" role="button" tabindex="0" aria-pressed="false" title="Show only low findings"><div class="sev-stat-icon">{{ severity_icon('low') }}</div><div class="sev-stat-num">{{ counts.low }}</div><div class="sev-stat-label">Low</div></div>
+  <div class="sev-stat severity-info" data-sev="info" role="button" tabindex="0" aria-pressed="false" title="Show only info findings"><div class="sev-stat-icon">{{ severity_icon('info') }}</div><div class="sev-stat-num">{{ counts.info }}</div><div class="sev-stat-label">Info</div></div>
+</section>
+
+{% if project.findings %}
+  <div class="findings-cards">
+    {% for f in sorted_findings %}
+      {% set sev = (f.severity or 'info') | lower %}
+      <details class="finding-card severity-{{ sev }}">
+        <summary>
+          <div class="finding-sev-icon">{{ severity_icon(sev) }}</div>
+          <div class="finding-head-main">
+            <div class="finding-title-big">{{ f.title }}</div>
+            <div class="finding-sub muted small">
+              <span class="finding-sev">{{ sev }}</span>
+              <span>#{{ f.id }}</span>
+            </div>
+          </div>
+          <div class="finding-expand muted small">edit ▸</div>
+        </summary>
+        <div class="finding-body">
+          <form method="post" action="{{ url_for('web.edit_finding', finding_id=f.id) }}" class="form">
+            <div class="finding-form-grid">
+              <label><span>Title</span><input type="text" name="title" value="{{ f.title }}"></label>
+              <label>
+                <span>Severity</span>
+                <select name="severity" class="severity-select">
+                  {% for s in ['info','low','medium','high','critical'] %}
+                    <option value="{{ s }}" {% if sev == s %}selected{% endif %}>{{ s | capitalize }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+            </div>
+            <label><span>Description</span><textarea name="description" rows="8">{{ f.description or '' }}</textarea></label>
+            <label><span>Recommendation</span><textarea name="recommendation" rows="5" placeholder="How to remediate: the fix, mitigations, references...">{{ f.recommendation or '' }}</textarea></label>
+            <div class="actions actions-split">
+              <button class="btn primary" type="submit">Save changes</button>
+            </div>
+          </form>
+          <div class="finding-evidence" style="margin-top:14px;">
+            <div class="muted small" style="margin-bottom:6px;">Evidence</div>
+            {% if f.evidence %}
+              <div class="evidence-gallery">
+                {% for e in f.evidence %}
+                  {% set mime = e.mime_type or '' %}
+                  {% set is_img = mime.startswith('image/') and mime != 'image/svg+xml' %}
+                  <button type="button" class="evidence-item"
+                          data-name="{{ e.name }}"
+                          data-desc="{{ e.description or '' }}"
+                          data-source="{{ e.source_type or 'other' }}"
+                          data-size="{{ e.size }}"
+                          data-image="{{ '1' if is_img else '' }}"
+                          data-view="{{ url_for('web.view_finding_evidence', finding_id=f.id, evidence_id=e.id) }}"
+                          data-download="{{ url_for('web.download_finding_evidence', finding_id=f.id, evidence_id=e.id) }}"
+                          title="{{ e.description or e.name }}">
+                    <span class="evidence-thumb">
+                      {% if is_img %}
+                        <img src="{{ url_for('web.view_finding_evidence', finding_id=f.id, evidence_id=e.id) }}" alt="{{ e.name }}" loading="lazy">
+                      {% else %}
+                        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>
+                      {% endif %}
+                    </span>
+                    <span class="evidence-name">{{ e.name }}</span>
+                  </button>
+                {% endfor %}
+              </div>
+            {% endif %}
+            <form method="post" action="{{ url_for('web.add_finding_evidence', finding_id=f.id) }}" enctype="multipart/form-data" class="inline-form finding-evidence-form" title="Raw 3rd-party output only — put your own observations in the description">
+              <select name="source_type" required aria-label="Evidence source type">
+                <option value="" disabled selected>source…</option>
+                <option value="tool_output">tool output</option>
+                <option value="screenshot">screenshot</option>
+                <option value="log">log</option>
+                <option value="raw_response">raw response</option>
+                <option value="config">config</option>
+                <option value="file_content">file content</option>
+                <option value="other">other</option>
+              </select>
+              <input type="file" name="file" required>
+              <input type="text" name="description" required placeholder="What does this evidence show?" class="evidence-desc-input" aria-label="Evidence description">
+              <button class="btn small primary" type="submit">Upload</button>
+            </form>
+          </div>
+          <form method="post" action="{{ url_for('web.delete_finding', finding_id=f.id) }}" class="finding-delete-form">
+            <button class="btn danger icon-btn" type="submit" title="Delete finding" aria-label="Delete finding" onclick="return confirm('Delete finding?');">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </button>
+          </form>
+        </div>
+      </details>
+    {% endfor %}
+  </div>
+{% else %}
+  <section class="panel findings-empty-panel">
+    <div class="findings-empty">
+      <svg viewBox="0 0 24 24" width="48" height="48" aria-hidden="true"><path d="M12 2l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-1.5L12 2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" opacity="0.5"/></svg>
+      <h2>No findings yet</h2>
+    </div>
+  </section>
+{% endif %}
+
+{% if project.findings %}
+<div class="endpoint-modal-backdrop" id="evidence-viewer" hidden>
+  <div class="endpoint-modal evidence-viewer-modal" role="dialog" aria-modal="true" aria-labelledby="evidence-viewer-title">
+    <div class="endpoint-modal-head">
+      <h2 id="evidence-viewer-title">Evidence</h2>
+      <button type="button" class="endpoint-modal-close" id="evidence-viewer-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="evidence-viewer-meta">
+      <span class="pill" id="evidence-viewer-source"></span>
+      <span class="muted small" id="evidence-viewer-size"></span>
+      <a class="btn small" id="evidence-viewer-download" href="#" download>Download</a>
+    </div>
+    <p class="evidence-viewer-desc muted" id="evidence-viewer-desc" hidden></p>
+    <div class="evidence-viewer-body">
+      <img id="evidence-viewer-img" alt="" hidden>
+      <pre id="evidence-viewer-text" hidden></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var backdrop = document.getElementById('evidence-viewer');
+    if (!backdrop) return;
+    var title = document.getElementById('evidence-viewer-title');
+    var source = document.getElementById('evidence-viewer-source');
+    var size = document.getElementById('evidence-viewer-size');
+    var download = document.getElementById('evidence-viewer-download');
+    var desc = document.getElementById('evidence-viewer-desc');
+    var img = document.getElementById('evidence-viewer-img');
+    var text = document.getElementById('evidence-viewer-text');
+
+    function fmtSize(bytes) {
+      var n = parseInt(bytes, 10);
+      if (isNaN(n)) return '';
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+      return (n / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function close() {
+      backdrop.hidden = true;
+      img.removeAttribute('src');
+      img.hidden = true;
+      text.textContent = '';
+      text.hidden = true;
+    }
+
+    function open(item) {
+      title.textContent = item.dataset.name || 'Evidence';
+      source.textContent = (item.dataset.source || 'other').replace(/_/g, ' ');
+      size.textContent = fmtSize(item.dataset.size);
+      download.href = item.dataset.download;
+      var d = item.dataset.desc || '';
+      desc.textContent = d;
+      desc.hidden = !d;
+      img.hidden = true;
+      text.hidden = true;
+      if (item.dataset.image) {
+        img.src = item.dataset.view;
+        img.alt = item.dataset.name || '';
+        img.hidden = false;
+      } else {
+        text.textContent = 'Loading…';
+        text.hidden = false;
+        fetch(item.dataset.view)
+          .then(function (r) {
+            if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+            return r.text();
+          })
+          .then(function (t) {
+            // Keep the popup responsive on huge captures.
+            var max = 500000;
+            text.textContent = t.length > max
+              ? t.slice(0, max) + '\n\n… truncated (' + fmtSize(String(t.length)) + ' total — download for the full file)'
+              : (t || '(empty file)');
+          })
+          .catch(function (e) {
+            text.textContent = 'Could not load evidence: ' + e.message;
+          });
+      }
+      backdrop.hidden = false;
+    }
+
+    document.querySelectorAll('.evidence-item').forEach(function (item) {
+      item.addEventListener('click', function () { open(item); });
+    });
+    document.getElementById('evidence-viewer-close').addEventListener('click', close);
+    backdrop.addEventListener('click', function (e) { if (e.target === backdrop) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !backdrop.hidden) close(); });
+  })();
+</script>
+
+<script>
+  (function () {
+    // Severity count panels act as include toggles: click any number of them to
+    // show findings of those risks. Each active panel takes the diagonal "shift
+    // stripes" texture. With none selected — or every panel selected — all
+    // findings show (no effective filter either way).
+    var stats = Array.prototype.slice.call(document.querySelectorAll('.sev-stat'));
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.finding-card'));
+    var selected = {};
+    function apply() {
+      var on = stats.filter(function (s) { return selected[s.dataset.sev]; });
+      // No selection, or all of them, means "show everything".
+      var filtering = on.length > 0 && on.length < stats.length;
+      cards.forEach(function (c) {
+        var show = !filtering || on.some(function (s) {
+          return c.classList.contains('severity-' + s.dataset.sev);
+        });
+        c.style.display = show ? '' : 'none';
+      });
+    }
+    function toggle(stat) {
+      var sev = stat.dataset.sev;
+      selected[sev] = !selected[sev];
+      stat.classList.toggle('filtered', selected[sev]);
+      stat.setAttribute('aria-pressed', selected[sev] ? 'true' : 'false');
+      apply();
+    }
+    stats.forEach(function (stat) {
+      stat.addEventListener('click', function () { toggle(stat); });
+      stat.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(stat); }
+      });
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}

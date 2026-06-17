@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% import "_workflow_type.html" as workflow_type %}
+
+{% block full_title %}ShiftGrid - {{ overall_progress }}% done{% endblock %}
+
+{% macro phase_icon(phase) -%}
+<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">{% if phase.icon %}{{ phase.icon | safe }}{% else %}<circle cx="12" cy="12" r="4" fill="currentColor"/>{% endif %}</svg>
+{%- endmacro %}
+
+{# Work-attribution chips. focused_by = the live claim (who is working on it now);
+   done_by = who finished it. Both are {id, alias} dicts or falsy. Agents set these
+   via the API (their X-Agent-Id/alias); the operator's UI actions tag as 'op'. #}
+{% macro agent_tags(focused_by=None, done_by=None) -%}
+{% if focused_by %}<span class="agent-tag agent-tag--focused" data-tooltip="Focused by {{ focused_by.alias }} (id {{ focused_by.id }})"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>{{ focused_by.alias }}</span>{% endif %}{% if done_by %}<span class="agent-tag agent-tag--done" data-tooltip="Done by {{ done_by.alias }} (id {{ done_by.id }})"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>{{ done_by.alias }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro section_icon(s) -%}
+{% if s == 'workflow' %}<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="6" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 6H15.5M18 8.5V15.5M15.5 18H8.5M6 15.5V8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+{%- elif s == 'checklist' %}<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 12l3 3 5-6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+{%- elif s == 'endpoints' %}<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>
+{%- elif s == 'notes' %}<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M9 13h7M9 17h5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+{%- elif s == 'findings' %}<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 2l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-1.5L12 2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+{%- endif %}
+{%- endmacro %}
+
+{% block body %}
+{% set phase_ids = workflow.phases | map(attribute='id') | list %}
+{% set current_idx = phase_ids.index(project.current_phase) %}
+{% set is_last = current_idx == phase_ids|length - 1 %}
+
+<div class="phase-bar">
+  <div class="phase-bar-row">
+    <button type="button" class="phase-scroll phase-scroll-left" aria-label="Scroll workflow phases left">
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="phase-bar-inner" id="phase-bar-inner">
+      {% for phase in workflow.phases %}
+        {% set idx = loop.index0 %}
+        {% if project.is_phase_in_modify_mode(phase.id) %}
+          {% set state = 'modify' %}
+        {% elif idx < current_idx or (workflow_terminal|default(false) and idx == current_idx) %}
+          {% set state = 'done' %}
+        {% elif idx == current_idx %}
+          {% set state = 'active' %}
+        {% else %}
+          {% set state = 'future' %}
+        {% endif %}
+        <a class="phase-step {{ state }}" href="{{ url_for('web.workflow') }}#phase-{{ phase.id }}" data-phase="{{ phase.id }}" title="{{ phase.id }}{% if phase.optional %} (optional){% endif %}{% if phase.free %} (free){% endif %}">
+          <div class="phase-marker">
+            {% if state == 'done' %}
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M13 4L6.5 11 3 7.5" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            {% else %}
+              {{ phase_icon(phase) }}
+            {% endif %}
+          </div>
+          <div class="phase-label">{{ phase.name }}</div>
+        </a>
+        {% if not loop.last %}<div class="phase-connector {{ 'done' if idx < current_idx else '' }}"></div>{% endif %}
+      {% endfor %}
+    </div>
+    <button type="button" class="phase-scroll phase-scroll-right" aria-label="Scroll workflow phases right">
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="project-name">{{ project.name }}</div>
+      {{ workflow_type.workflow_type_badge(workflow.id, workflow.name, workflow.color) }}
+      <div class="sidebar-info-box">
+        <div class="sidebar-info-title">
+          {% if project.scope_locked %}
+            <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          {% else %}
+            <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 7.3-2.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          {% endif %}
+          <span>Scope</span>
+        </div>
+        {% if project.scope %}
+          <div class="sidebar-scope-list">
+            {% for item in project.scope[:4] %}
+              <code>{{ item }}</code>
+            {% endfor %}
+            {% if project.scope | length > 4 %}
+              <span class="muted small">+{{ project.scope | length - 4 }} more</span>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="muted small">No scope set.</div>
+        {% endif %}
+      </div>
+    </div>
+    <nav>
+      {% for item in extra_nav %}
+      <a href="{{ url_for(item.endpoint) }}" class="{% if section == item.section %}active{% endif %}">
+        {{ item.icon | safe }}
+        <span>{{ item.label }}</span>
+      </a>
+      {% endfor %}
+      <a href="{{ url_for('web.workflow') }}" class="{% if section == 'workflow' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="6" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 6H15.5M18 8.5V15.5M15.5 18H8.5M6 15.5V8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>Workflow</span>
+      </a>
+      <a href="{{ url_for('web.checklist') }}" class="{% if section == 'checklist' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 12l3 3 5-6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Checklist</span>
+      </a>
+      <a href="{{ url_for('web.endpoints') }}" class="{% if section == 'endpoints' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>
+        <span>Endpoints</span>
+      </a>
+      <a href="{{ url_for('web.notes') }}" class="{% if section == 'notes' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 3v5h5M9 13h7M9 17h5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+        <span>Notes</span>
+      </a>
+      <a href="{{ url_for('web.findings') }}" class="{% if section == 'findings' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 2l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-1.5L12 2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        <span>Findings</span>
+      </a>
+    </nav>
+    <div class="sidebar-foot">
+      <a href="{{ url_for('web.operator_docs') }}" class="sidebar-api-link {% if section == 'operator_docs' %}active{% endif %}">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 5h16M4 10h16M4 15h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Operator docs</span>
+      </a>
+      <a href="//{{ request.host.split(':')[0] }}:{{ api_port }}/api/v1/docs" class="sidebar-api-link" target="_blank" rel="noreferrer">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M14 3h7v7M21 3l-9 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 5H6a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Agent API docs</span>
+      </a>
+      <button type="button" class="sidebar-copy-btn" id="copy-project-folder" title="Copy path" aria-label="Copy path">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span id="project-folder-path">{{ project_folder }}</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="content {% block content_class %}{% endblock %}">
+    {% set _titles = {'workflow': 'Workflow', 'checklist': 'Checklist', 'endpoints': 'Endpoints', 'notes': 'Notes', 'findings': 'Findings', 'operator_docs': 'Operator actions'} %}
+    {% set hdr = namespace(title=_titles.get(section, ''), icon='') %}
+    {% for item in extra_nav %}{% if item.section == section %}{% set hdr.title = item.label %}{% set hdr.icon = item.icon %}{% endif %}{% endfor %}
+    {% if hdr.title %}
+    <header class="page-header page-header-{{ section }}">
+      <span class="page-header-icon">{% if hdr.icon %}{{ hdr.icon | safe }}{% else %}{{ section_icon(section) }}{% endif %}</span>
+      <h1 class="page-header-title">{{ hdr.title }}</h1>
+      {% block page_subtitle %}{% endblock %}
+      {% if page_progress is defined %}
+      {% set seg_total = 10 %}
+      {% set seg_filled = (page_progress * seg_total / 100) | round(0, 'common') | int %}
+      <span class="page-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ page_progress }}" aria-label="{{ hdr.title }} progress">
+        <span class="page-progress-meter" aria-hidden="true">{% for i in range(seg_total) %}<span class="page-progress-seg{% if i < seg_filled %} on{% endif %}"></span>{% endfor %}</span>
+        <span class="page-progress-pct">{{ page_progress }}%</span>
+      </span>
+      {% endif %}
+    </header>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script>
+  (function () {
+    const scroller = document.getElementById('phase-bar-inner');
+    const left = document.querySelector('.phase-scroll-left');
+    const right = document.querySelector('.phase-scroll-right');
+    if (!scroller || !left || !right) return;
+
+    function updatePhaseArrows() {
+      const maxScroll = scroller.scrollWidth - scroller.clientWidth;
+      left.hidden = scroller.scrollLeft <= 2;
+      right.hidden = scroller.scrollLeft >= maxScroll - 2;
+    }
+
+    function scrollPhases(direction) {
+      scroller.scrollBy({
+        left: direction * Math.max(180, Math.floor(scroller.clientWidth * 0.6)),
+        behavior: 'smooth'
+      });
+    }
+
+    // Centre the current phase in the pill. The browser clamps scrollLeft to
+    // [0, maxScroll], so the first/last phases naturally settle against the
+    // left/right edge instead of being forced past it.
+    function centerCurrentPhase(behavior) {
+      const current = scroller.querySelector('.phase-step.active')
+        || scroller.querySelector('.phase-step.modify');
+      if (!current) return;
+      const sRect = scroller.getBoundingClientRect();
+      const cRect = current.getBoundingClientRect();
+      const delta = (cRect.left - sRect.left) - (scroller.clientWidth - cRect.width) / 2;
+      scroller.scrollTo({left: scroller.scrollLeft + delta, behavior: behavior || 'auto'});
+    }
+
+    // Is the current phase already fully inside the pill's viewport? If so we
+    // leave the scroll alone — no point yanking it to centre something the user
+    // can already see.
+    function isCurrentVisible() {
+      const current = scroller.querySelector('.phase-step.active')
+        || scroller.querySelector('.phase-step.modify');
+      if (!current) return true;
+      const sRect = scroller.getBoundingClientRect();
+      const cRect = current.getBoundingClientRect();
+      return cRect.left >= sRect.left - 1 && cRect.right <= sRect.right + 1;
+    }
+
+    // Remember where the user left the pill so that a same-page reload (e.g.
+    // saving an observation, which POSTs and reloads the workflow page) keeps
+    // their scroll position instead of snapping back. We only re-centre when
+    // the page (URL) or the active phase actually changes.
+    const STORE_KEY = 'shiftgrid:phasebar-scroll';
+
+    function currentPhaseId() {
+      const current = scroller.querySelector('.phase-step.active')
+        || scroller.querySelector('.phase-step.modify');
+      return current ? current.dataset.phase : '';
+    }
+
+    function saveScroll() {
+      try {
+        sessionStorage.setItem(STORE_KEY, JSON.stringify({
+          path: location.pathname,
+          phase: currentPhaseId(),
+          scrollLeft: scroller.scrollLeft
+        }));
+      } catch (e) { /* sessionStorage may be unavailable */ }
+    }
+
+    function restoreOrCenter() {
+      let saved = null;
+      try { saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null'); }
+      catch (e) { saved = null; }
+      // Same page and same phase => an in-page action, keep their position.
+      if (saved && saved.path === location.pathname && saved.phase === currentPhaseId()) {
+        scroller.scrollLeft = saved.scrollLeft;
+      } else if (!isCurrentVisible()) {
+        // New page or new phase, and the active phase is off-screen: centre it.
+        // If it's already visible we leave the natural scroll position be.
+        centerCurrentPhase('auto');
+      }
+      saveScroll();
+    }
+
+    left.addEventListener('click', function () { scrollPhases(-1); });
+    right.addEventListener('click', function () { scrollPhases(1); });
+    scroller.addEventListener('scroll', function () {
+      updatePhaseArrows();
+      saveScroll();
+    }, {passive: true});
+    window.addEventListener('resize', function () {
+      if (!isCurrentVisible()) centerCurrentPhase('auto');
+      updatePhaseArrows();
+    });
+    // Clicking a breadcrumb phase opens the workflow page and scrolls to that
+    // phase. When we're already on the workflow page the matching card exists,
+    // so scroll to it smoothly in-page instead of doing a hard hash jump.
+    // scrollIntoView honours the card's scroll-margin-top, landing it below the
+    // sticky breadcrumb bar. On other pages the card is absent, so we let the
+    // link navigate to the workflow page (the hash scrolls it there on load).
+    scroller.querySelectorAll('.phase-step').forEach(function (step) {
+      step.addEventListener('click', function (e) {
+        const phase = step.dataset.phase;
+        if (!phase) return;
+        const target = document.getElementById('phase-' + phase);
+        if (!target) return;
+        e.preventDefault();
+        target.scrollIntoView({behavior: 'smooth', block: 'start'});
+        history.replaceState(null, '', '#phase-' + phase);
+      });
+    });
+    // Defer the initial reads — running synchronously here forces a full
+    // layout (~50ms) before the browser is ready. requestAnimationFrame
+    // hands control back, lets the browser do its natural first layout,
+    // then we read freely.
+    requestAnimationFrame(function () {
+      restoreOrCenter();
+      updatePhaseArrows();
+    });
+  })();
+  (function () {
+    const button = document.getElementById('copy-project-folder');
+    const path = document.getElementById('project-folder-path');
+    if (!button || !path) return;
+
+    function markCopied() {
+      button.classList.add('copied');
+      button.setAttribute('aria-label', 'Copied project folder path');
+      setTimeout(function () {
+        button.classList.remove('copied');
+        button.setAttribute('aria-label', 'Copy path');
+      }, 1100);
+    }
+
+    function copyFallback(text) {
+      const field = document.createElement('textarea');
+      field.value = text;
+      field.setAttribute('readonly', '');
+      field.style.position = 'fixed';
+      field.style.opacity = '0';
+      document.body.appendChild(field);
+      field.select();
+      document.execCommand('copy');
+      document.body.removeChild(field);
+      markCopied();
+    }
+
+    button.addEventListener('click', function () {
+      const text = path.textContent.trim();
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(markCopied).catch(function () {
+          copyFallback(text);
+        });
+        return;
+      }
+      copyFallback(text);
+    });
+  })();
+</script>
+{% endblock %}

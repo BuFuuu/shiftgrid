@@ -1,0 +1,84 @@
+{
+  "id": "webapp-simple",
+  "name": "Web App (Simple)",
+  "color": "#3b82f6",
+  "checklist": "owasp-checks",
+  "phases": [
+    {
+      "id": "reconnaissance",
+      "icon": "<circle cx=\"11\" cy=\"11\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M20 20l-4-4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Reconnaissance",
+      "description": "Confirm the target is reachable, get a fast overview of what is exposed, understand the app, then run a quick content-discovery pass. Add anything you find as endpoints via /api/v1/endpoint/.. so later phases have full coverage.",
+      "steps": [
+        {"check": "verify_reachable", "title": "Confirm Target Reachability", "description": "Confirm the in-scope target is up and responding before testing. Resolve its DNS and send a basic request to each known host and port. Record what answers and what does not. If it is not reachable do not continue this workflow / test.", "examples": "dig +short target.com\nping -c 2 target.com\ncurl -skI https://target.com"},
+        {"check": "quick_port_scan", "title": "Quick Port Scan (nmap -F)", "description": "Run a fast top-ports scan to see which services are exposed. Use it to confirm the web ports and to spot anything unexpected before deeper recon.", "examples": "nmap -Pn -F target.com\nnmap -Pn -F -sV target.com   # add versions on the open ports"},
+        {"check": "understand_target", "title": "Understand the Target", "description": "Browse the app, read the landing pages and identify the tech stack, the roles and the main features. Build a clear mental model of what the application actually does before scanning it.", "examples": "whatweb https://target.com\ncurl -s https://target.com | grep -i 'generator\\|powered'\nBrowse the app in Playwright and note the main features."},
+        {"check": "plan_content_discovery", "title": "Plan Content Discovery", "description": "Plan one quick web content-discovery run. Pick a wordlist of at most 5k entries, decide file extensions, target paths and a filter against the baseline 404. Keep it focused and fast.", "examples": "Wordlist: SecLists/Discovery/Web-Content/common.txt (~4.7k)\nFilter: capture a known 404 first, then -fc 404 or -fs <size>\nExtensions: pick one, e.g. -e .php"},
+        {"check": "run_content_discovery", "title": "Run Content Discovery", "repeatable": true, "description": "Execute the discovery plan. Filter out the baseline response, review the hits, then add every real path through /api/v1/endpoint/.. so later phases test them.", "examples": "ffuf -u https://target.com/FUZZ -w common.txt -fc 404\nThen POST /api/v1/endpoint for each confirmed path."}
+      ]
+    },
+    {
+      "id": "free_reconnaissance",
+      "icon": "<circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M15 9l-2 4-4 2 2-4 4-2z\" fill=\"currentColor\"/>",
+      "name": "Free Reconnaissance",
+      "description": "Step back and look for recon gaps the structured steps missed. Recon only -- no security testing here.",
+      "steps": [
+        {"check": "free_recon", "title": "Free-Form Recon", "repeatable": true, "description": "Read GET /api/v1/notes and decide if anything is still missing recon-wise: an unscanned path, an unfingerprinted host, a role whose surface you do not understand. Only act on real gaps; otherwise finish with status=skipped.", "examples": "Targeted: ffuf a path you saw in JS but never enumerated.\nSkipped: status=skipped, observations='Recon already covered all hosts, roles and endpoints. Nothing missing.'"}
+      ]
+    },
+    {
+      "id": "general_checks",
+      "_comment": "Phase id MUST stay 'general_checks': the workflow page hardcodes that id to render the 'In focus / Recently worked on' checklist panel (workflow.html + routes.py). Renaming it hides the panel.",
+      "kind": "checklist",
+      "icon": "<path d=\"M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M9 12l2 2 4-4\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
+      "name": "Work on Checklist",
+      "description": "Tune the project checklist to this target, then work every global-scope check to completion. The phase advances only after all global-checks are finished.",
+      "steps": [
+        {"check": "adjust_checklist", "title": "Tune the Checklist", "description": "Review the checklist against this target. Mark irrelevant checks 'not applicable' with a one-line reason, and add any check that is missing. Use the API -- notes alone do not change the checklist.", "examples": "GET /api/v1/checklist/titles\nPUT /api/v1/check/{id}/status  {\"status\": \"not applicable\"}\nPUT /api/v1/check/{id}/observations  {\"observations\": \"no TLS, plain HTTP only\"}"},
+        {"check": "whole_app_checks", "title": "Work the Global Checks", "repeatable": true, "description": "Work every global-scope check. Focus it, do real testing instead of trusting old notes, record what you did and found, then finish it. Keep going until every global-check is done.", "examples": "POST /api/v1/check/{id}/focus\n...do the actual testing...\nPUT /api/v1/check/{id}/observations  {\"observations\": \"...\"}\nPOST /api/v1/check/{id}/finish"}
+      ]
+    },
+    {
+      "id": "endpoint_testing",
+      "kind": "endpoint",
+      "icon": "<path d=\"M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M4 7.5l8 4.5 8-4.5M12 12v9\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linejoin=\"round\"/>",
+      "name": "Endpoint Testing",
+      "description": "Pull together every endpoint discovered so far, organise them, then test each one for full coverage.",
+      "steps": [
+        {"check": "collect_endpoints", "title": "Collect Endpoints", "repeatable": true, "description": "Information-gathering only. Review the logs, notes and recon captures for endpoints found so far and add each one through /api/v1/endpoint/.. Do not run new scans here -- just make coverage complete.", "examples": "GET /api/v1/notes\nThen POST /api/v1/endpoint for each path not yet stored."},
+        {"check": "group_endpoints", "title": "Group by Feature", "repeatable": true, "description": "Sort the endpoints into feature groups so related functionality is tested together. Put endpoints that belong to the same backend feature into the same group.", "examples": "POST /api/v1/feature-groups  {\"name\": \"Authentication\"}\nPUT /api/v1/endpoint/{id}/feature-group  {\"feature_group\": \"<group_id>\"}"},
+        {"check": "test_endpoints", "title": "Test All Endpoints", "repeatable": true, "description": "Test every endpoint thoroughly, one feature group at a time. For each endpoint run the per-endpoint checks, record observations and raw captures, set a status, then mark it tested.", "examples": "POST /endpoint/{id}/focus -> POST /endpoint/{id}/checks-adjusted\nGET /workflow/endpoint-testing/current-step?endpoint_id={id}\n...test... PUT /check/{cid}/observations -> PUT /check/{cid}/status\nLoop until done, then POST /endpoint/{id}/unfocus."}
+      ]
+    },
+    {
+      "id": "free_testing",
+      "icon": "<path d=\"M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z\" fill=\"currentColor\"/><circle cx=\"19\" cy=\"5\" r=\"1.5\" fill=\"currentColor\"/><circle cx=\"5\" cy=\"19\" r=\"1.5\" fill=\"currentColor\"/>",
+      "name": "Free Testing",
+      "description": "Anything the structured phases missed? Chase hunches and chain what you have found.",
+      "steps": [
+        {"check": "refine_notes", "title": "Refine Notes", "description": "The notes should not be a simple log of what happened. They should reflect a more holistic view of the application: what is its main use case and therefore what are the main risks? What is the attacker model? What did the creators of the app try to accomplish when they developed it, and did they miss something? Rewrite the notes to contain both a structured overview of this test plus the more holistic risk view."},
+        {"check": "free_testing", "title": "Free-Form Testing", "repeatable": true, "description": "Follow up on anything the structured phases did not cover: a suspicious parameter, a business-logic flow, or chaining two earlier findings. Record what you try and what comes of it.", "examples": "curl an IDOR guess: curl -s https://target.com/api/orders/1002 -H 'Cookie: ...'\nReplay a suspicious request in Burp Repeater with a tampered parameter."}
+      ]
+    },
+    {
+      "id": "additional_work",
+      "icon": "<circle cx=\"11\" cy=\"11\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M20 20l-4-4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M11 8.5v5M8.5 11h5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Additional Work",
+      "description": "Before writing anything up, do the extra work that pays off: dig deeper where a vulnerability is likely hiding, then prune anything that will not hold up. Only confirmed, reproducible issues should reach Finding Writing.",
+      "steps": [
+        {"check": "deep_dive_vuln_search", "title": "Deep-Dive Where It Pays Off", "repeatable": true, "description": "Read GET /api/v1/notes and review the testing so far, then pick the spots where a deeper vulnerability hunt is worth it -- a high-value endpoint, a suspicious parameter, a half-explored auth or business-logic flow. Dig into those hard and test them properly. If nothing warrants a deeper look, finish with status=skipped. Change the checklist checks and endpoint observations if you found new facts.", "examples": "Re-examine an endpoint that returned odd errors with more aggressive, targeted payloads.\nChain two weak signals from earlier phases into a real exploitation attempt.\nSkipped: status=skipped, observations='Coverage was thorough; no area warrants a deeper dive.'"},
+        {"check": "identify_false_positives", "title": "Identify False Positives", "repeatable": true, "description": "Go back over every suspected vulnerability and reproduce it from scratch. Discard anything that does not hold up as a false positive, and keep a clean reproduction plus evidence for the ones that do. Record the verdict for each so Finding Writing only sees confirmed, reproducible issues.", "examples": "Re-run the exact request that triggered the issue and confirm the result is consistent.\nDiscard a 'finding' that only fired once and cannot be reproduced.\nNote the confirmed repro steps so Finding Writing can lift them directly."}
+      ]
+    },
+    {
+      "id": "finding_writing",
+      "icon": "<path d=\"M5 3v18\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M5 4h13l-3 4 3 4H5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/>",
+      "name": "Finding Writing",
+      "description": "Turn every confirmed vulnerability into a clear, evidenced finding.",
+      "steps": [
+        {"check": "write_findings", "title": "Write Up Findings", "repeatable": true, "description": "Create a finding for every confirmed vulnerability with a clear title, a severity and a description of impact and reproduction. Attach the supporting raw captures so each finding stands on its own.", "examples": "POST /api/v1/finding  {\"title\": \"SQLi at /login\", \"severity\": \"high\", \"description\": \"...\"}\nPUT /api/v1/finding/{id}/raw-captures  (attach request/response evidence)"},
+        {"check": "attach_finding_screenshots", "title": "Screenshot Medium+ Findings", "description": "Every finding rated medium, high or critical must carry at least one screenshot as evidence. Review each finding's severity and attach a screenshot raw capture to any that is medium or higher. Findings rated info or low do not require one. This is important. Install more tool to do this if you need to! Make sure you really take screenshots!", "examples": "GET /api/v1/findings  (review each finding's severity)\nPOST /api/v1/finding/{id}/raw-captures  (attach a screenshot for each medium-or-higher finding)"}
+      ]
+    }
+  ]
+}

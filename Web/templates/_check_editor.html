@@ -1,0 +1,38 @@
+﻿{% macro check_editor(item, endpoint_id, r, return_to='checklist') %}
+  <div class="check-row-tools">
+    <form method="post" action="{{ url_for('web.update_check', check_id=item.id) }}" class="check-update-form">
+      <input type="hidden" name="return_to" value="{{ return_to }}">
+      {% if endpoint_id %}<input type="hidden" name="endpoint_id" value="{{ endpoint_id }}">{% endif %}
+      <select name="status" aria-label="Status">
+        {% for s in ['pending','failed','passed','warning','vulnerable','not applicable'] %}
+          <option value="{{ s }}" {% if r.status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="observations" value="{{ r.observations or '' }}" placeholder="observations">
+      <button class="btn" type="submit">Save</button>
+    </form>
+    <form method="post" action="{{ url_for('web.add_check_evidence', check_id=item.id) }}" class="check-evidence-form" enctype="multipart/form-data" title="Raw 3rd-party output only -- put your own summary in observations">
+      <input type="hidden" name="return_to" value="{{ return_to }}">
+      {% if endpoint_id %}<input type="hidden" name="endpoint_id" value="{{ endpoint_id }}">{% endif %}
+      <select name="source_type" required aria-label="Evidence source type">
+        <option value="" disabled selected>source...</option>
+        <option value="tool_output">tool output</option>
+        <option value="screenshot">screenshot</option>
+        <option value="log">log</option>
+        <option value="raw_response">raw response</option>
+        <option value="config">config</option>
+        <option value="file_content">file content</option>
+        <option value="other">other</option>
+      </select>
+      <input type="file" name="file" required>
+      <button class="btn" type="submit">Upload tool output</button>
+    </form>
+    {% if r.evidence %}
+      <div class="muted small evidence-list">
+        {% for e in r.evidence %}
+          <a class="pill" href="{{ url_for('web.download_check_evidence', check_id=item.id, evidence_id=e.id) }}{% if endpoint_id %}?endpoint_id={{ endpoint_id }}{% endif %}">{{ e.name }} ({{ e.size }}B)</a>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+{% endmacro %}

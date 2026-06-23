@@ -22,8 +22,11 @@ The tool is independent of the workflows, checklists, agents, and models you use
 
 
 # GIF
-TODO
-
+<p align="center">
+  <a href="demo.gif">
+    <img src="demo.gif" width="800">
+  </a>
+</p>
 
 # Installation
 

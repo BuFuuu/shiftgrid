@@ -108,6 +108,21 @@ class EndpointsMixin:
             raise ValueError(f"endpoint {endpoint_id} is already {endpoint.get('status')}")
         if not endpoint.get("feature_group"):
             raise ValueError(f"endpoint {endpoint_id} is unassigned; assign it to a feature group before focusing")
+        # One focused endpoint per agent: claim a new one only after finishing or
+        # unfocusing the current one (no multi-endpoint editing).
+        if agent is not None:
+            held = next(
+                (a for a in self.focused_endpoints()
+                 if a["id"] != endpoint_id and (a.get("focused_by") or {}).get("id") == agent.get("id")),
+                None,
+            )
+            if held is not None:
+                raise ValueError(
+                    f"you already have endpoint {held['id']} ({held.get('name', '')}) focused; "
+                    f"finish it (POST /api/v1/endpoint/{held['id']}/finish) or unfocus it "
+                    f"(POST /api/v1/endpoint/{held['id']}/unfocus) before focusing another — "
+                    f"one focused endpoint per agent."
+                )
         endpoint["status"] = "focused"
         endpoint.setdefault("checks_adjusted", False)
         if agent is not None:

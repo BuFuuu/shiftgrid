@@ -672,6 +672,21 @@ class WorkflowMixin:
                 raise ValueError(f"bad step status {status}")
             state["status"] = status
             if status == "focused" and agent is not None:
+                # One focused step per agent: claim a new one only after finishing
+                # or releasing the current one.
+                held = next(
+                    (okey for okey, ostate in self.workflow_steps.items()
+                     if okey != key and isinstance(ostate, dict)
+                     and ostate.get("status") in ("focused", "in_progress")
+                     and (ostate.get("focused_by") or {}).get("id") == agent.get("id")),
+                    None,
+                )
+                if held is not None:
+                    raise WorkflowOrderError(
+                        f"you already have step {held} focused; finish it "
+                        f"(POST .../finish) or release it (PUT the step {{\"status\": \"pending\"}}) "
+                        f"before focusing another — one focused step per agent."
+                    )
                 state["focused_by"] = agent
             # If the agent backs out of a terminal status, the step is no
             # longer finished — they must call POST /finish again to advance —

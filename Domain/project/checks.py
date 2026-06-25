@@ -70,6 +70,22 @@ class ChecksMixin:
                 raise self._check_focus_required(check_id, f"set its status to '{status}'")
             if observations is not None and not (currently_focused or becoming_focused):
                 raise self._check_focus_required(check_id, "record observations")
+            # One focused global check per agent: claim a new one only after
+            # finishing or releasing the current one.
+            if becoming_focused and not currently_focused and agent is not None:
+                held = next(
+                    (c for c in self.focused_global_checks()
+                     if c["id"] != check_id
+                     and (((c.get("results") or {}).get("_global") or {}).get("focused_by") or {}).get("id") == agent.get("id")),
+                    None,
+                )
+                if held is not None:
+                    raise ValueError(
+                        f"you already have check {held['id']} focused; finish it "
+                        f"(POST /api/v1/check/{held['id']}/finish) or release it "
+                        f"(PUT /api/v1/check/{held['id']}/status {{\"status\": \"pending\"}}) "
+                        f"before focusing another — one focused check per agent."
+                    )
 
         if status is not None:
             if status not in CHECK_STATUSES:

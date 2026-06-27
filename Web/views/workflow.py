@@ -1,3 +1,5 @@
+import base64
+
 from flask import render_template, request, redirect, url_for, flash, send_file
 
 from Domain import PhaseIncompleteError, WorkflowOrderError, StepDisabledError, ObservationsTooLongError, FocusRequiredError
@@ -223,6 +225,33 @@ def advance():
         return redirect(request.form.get("return_to") or url_for("web.workflow"))
     s.save(project)
     return redirect(request.form.get("return_to") or url_for("web.workflow"))
+
+
+@web_bp.post("/project/workflow/<phase_id>/<step_id>/evidence")
+@require_loaded
+def add_step_evidence(phase_id, step_id):
+    s = service()
+    project = s.current
+    uploaded = request.files.get("file")
+    if uploaded is None or not uploaded.filename:
+        flash("no file selected")
+        return redirect(url_for("web.workflow"))
+    data_b64 = base64.b64encode(uploaded.read()).decode("ascii")
+    try:
+        project.add_workflow_step_evidence(
+            phase_id,
+            step_id,
+            uploaded.filename,
+            data_b64,
+            mime_type=uploaded.mimetype or "application/octet-stream",
+            source_type=request.form.get("source_type") or "other",
+            description=(request.form.get("description") or "").strip(),
+        )
+    except (ValueError, StepDisabledError, FocusRequiredError) as e:
+        flash(str(e))
+        return redirect(url_for("web.workflow"))
+    s.save(project)
+    return redirect(url_for("web.workflow"))
 
 
 @web_bp.get("/project/workflow/<phase_id>/<step_id>/evidence/<evidence_id>")

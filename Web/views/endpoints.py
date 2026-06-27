@@ -23,12 +23,11 @@ def add_endpoint():
     s = service()
     project = s.current
     name = request.form.get("name", "").strip()
-    title = request.form.get("title", "").strip()
     atype = request.form.get("type", "host").strip() or "host"
     observations = request.form.get("observations", "").strip()
     if name:
         try:
-            project.add_endpoint(name, atype, observations=observations, title=title)
+            project.add_endpoint(name, atype, observations=observations)
         except (ValueError, ObservationsTooLongError) as e:
             flash(str(e))
             return redirect(url_for("web.endpoints"))
@@ -77,7 +76,7 @@ def edit_endpoint(endpoint_id):
     s = service()
     project = s.current
     fields = {}
-    for k in ("title", "type", "observations"):
+    for k in ("type", "observations"):
         if k in request.form:
             fields[k] = request.form.get(k, "").strip()
     return_to = request.form.get("return_to") or url_for("web.endpoints")

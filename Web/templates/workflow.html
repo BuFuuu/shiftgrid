@@ -125,6 +125,9 @@
                 {% endfor %}
               </span>
             {% endif %}
+            <button type="button" class="ctx-icon-svg check-row-upload-toggle" aria-label="Upload raw capture" data-tooltip="Upload raw 3rd-party tool output / screenshot / log" data-empty="true" aria-expanded="false">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </button>
             {{ agent_tags(r.focused_by, r.done_by) }}
           </div>
           <div class="step-notes-editor row-editor" hidden>
@@ -138,6 +141,27 @@
                   <polyline points="7 3 7 8 15 8"/>
                 </svg>
               </button>
+            </form>
+          </div>
+          <div class="check-row-evidence-upload row-editor" hidden>
+            <form method="post" action="{{ url_for('web.add_check_evidence', check_id=item.id) }}" class="inline-form check-row-evidence-form" enctype="multipart/form-data" title="Raw 3rd-party output only -- put your own summary in observations">
+              <input type="hidden" name="return_to" value="workflow">
+              <select name="source_type" required aria-label="Evidence source type">
+                <option value="" disabled selected>raw capture source...</option>
+                <option value="tool_output">tool output</option>
+                <option value="screenshot">screenshot</option>
+                <option value="log">log</option>
+                <option value="raw_response">raw response</option>
+                <option value="config">config</option>
+                <option value="file_content">file content</option>
+                <option value="other">other</option>
+              </select>
+              <label class="file-input-label btn small">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11.6l-9 9a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8.5-8.5"/></svg>
+                <span class="file-input-text">Choose file</span>
+                <input type="file" name="file" required>
+              </label>
+              <button class="btn small primary" type="submit">Upload raw capture</button>
             </form>
           </div>
         </li>
@@ -206,6 +230,9 @@
                     {% endfor %}
                   </span>
                 {% endif %}
+                <button type="button" class="ctx-icon-svg step-upload-toggle" aria-label="Upload raw capture" data-tooltip="Upload raw 3rd-party tool output / screenshot / log" data-empty="true" aria-expanded="false" {% if step_disabled %}disabled{% endif %}>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </button>
                 {% set _is_finished = ss.finished %}
                 {% set _endpoints_block = phase.id == 'endpoint_testing' and step_id in ('test_endpoints', 'review_notes_reopen_endpoints') and not endpoint_testing_status.ready %}
                 {% set _can_finish = ss.status in ('done', 'skipped') and (ss.observations or '') | trim and not step_disabled and not _endpoints_block %}
@@ -239,6 +266,26 @@
                   <label><span>Description</span><textarea name="description" rows="3" placeholder="What this step is about, why it matters">{{ step_desc }}</textarea></label>
                   <label><span>Examples</span><textarea name="examples" rows="3" placeholder="Concrete examples, payloads, commands">{{ step_ex }}</textarea></label>
                   <div class="actions"><button class="btn primary" type="submit">Save context</button></div>
+                </form>
+              </div>
+              <div class="check-row-evidence-upload step-evidence-upload row-editor" hidden>
+                <form method="post" action="{{ url_for('web.add_step_evidence', phase_id=phase.id, step_id=step_id) }}" class="inline-form check-row-evidence-form" enctype="multipart/form-data" title="Raw 3rd-party output only -- put your own summary in observations">
+                  <select name="source_type" required aria-label="Evidence source type">
+                    <option value="" disabled selected>raw capture source...</option>
+                    <option value="tool_output">tool output</option>
+                    <option value="screenshot">screenshot</option>
+                    <option value="log">log</option>
+                    <option value="raw_response">raw response</option>
+                    <option value="config">config</option>
+                    <option value="file_content">file content</option>
+                    <option value="other">other</option>
+                  </select>
+                  <label class="file-input-label btn small">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11.6l-9 9a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8.5-8.5"/></svg>
+                    <span class="file-input-text">Choose file</span>
+                    <input type="file" name="file" required>
+                  </label>
+                  <button class="btn small primary" type="submit">Upload raw capture</button>
                 </form>
               </div>
             </li>
@@ -289,7 +336,7 @@
                 <li class="focused-endpoints-item focused-endpoint">
                   <div class="focused-endpoints-row">
                     <a class="focused-endpoints-link" href="{{ url_for('web.endpoints') }}#endpoint-{{ view.endpoint.id }}">
-                      {% if view.endpoint.title %}<strong class="ep-name">{{ view.endpoint.title }}</strong> {% endif %}<code>{{ view.endpoint.name }}</code>
+                      <code>{{ view.endpoint.name }}</code>
                       <span class="muted small">{{ view.done_count }}/{{ view.checks | length }} checks</span>
                     </a>
                     <form method="post" action="{{ url_for('web.unfocus_endpoint', endpoint_id=view.endpoint.id) }}" class="inline">
@@ -311,7 +358,7 @@
                 <li class="focused-endpoints-item tested-endpoint">
                   <div class="focused-endpoints-row">
                     <a class="focused-endpoints-link" href="{{ url_for('web.endpoints') }}#endpoint-{{ endpoint.id }}">
-                      {% if endpoint.title %}<strong class="ep-name">{{ endpoint.title }}</strong> {% endif %}<code>{{ endpoint.name }}</code>
+                      <code>{{ endpoint.name }}</code>
                       <span class="muted small">tested</span>
                     </a>
                   </div>
@@ -418,6 +465,28 @@
           var input = editor.querySelector('textarea[name="observations"]');
           if (input) input.focus();
         }
+      });
+    });
+    // Raw-capture upload panels: each toggle reveals the sibling upload form in
+    // its own row (global-check rows and workflow steps each have their own).
+    [['.check-row-upload-toggle', '.check-row-evidence-upload'],
+     ['.step-upload-toggle', '.step-evidence-upload']].forEach(function (pair) {
+      document.querySelectorAll(pair[0]).forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var li = btn.closest('li');
+          if (!li) return;
+          var panel = li.querySelector(pair[1]);
+          if (!panel) return;
+          var open = !panel.hidden;
+          panel.hidden = open;
+          btn.setAttribute('aria-expanded', String(!open));
+        });
+      });
+    });
+    document.querySelectorAll('.file-input-label input[type=file]').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var span = input.closest('.file-input-label').querySelector('.file-input-text');
+        if (span) span.textContent = (input.files && input.files.length) ? input.files[0].name : 'Choose file';
       });
     });
     // Unified state dropdown on global-checks: 'focused' is now a real status like

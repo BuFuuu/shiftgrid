@@ -74,7 +74,6 @@ class Credential(BaseModel):
 class Endpoint(BaseModel):
     id: str
     name: str
-    title: str = ""
     type: str = "host"
     observations: str = ""
     source: str = ""
@@ -411,18 +410,13 @@ class AddEndpointRequest(BaseModel):
             "there are no separate port or path fields to fill."
         ),
     )
-    title: str = Field(
-        default="",
-        description="Short human label for this endpoint, e.g. 'Admin login' or 'Orders API'.",
-    )
     source: str = "ai"
     observations: str = ""
 
 
 class UpdateEndpointRequest(BaseModel):
     # The endpoint address (name) is omitted on purpose: it is the endpoint's
-    # identity and cannot be changed after creation. The title is editable.
-    title: str | None = None
+    # identity and cannot be changed after creation.
     type: str | None = None
     observations: str | None = None
     base_observations: str | None = Field(default=None, description=BASE_OBSERVATIONS_DESC)

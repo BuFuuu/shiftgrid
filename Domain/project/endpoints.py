@@ -23,8 +23,6 @@ class EndpointsMixin:
             endpoint["feature_group"] = ""
         if "checks_adjusted" not in endpoint or not isinstance(endpoint["checks_adjusted"], bool):
             endpoint["checks_adjusted"] = False
-        if "title" not in endpoint or not isinstance(endpoint["title"], str):
-            endpoint["title"] = ""
 
     @property
     def feature_groups(self) -> list[dict]:
@@ -36,14 +34,12 @@ class EndpointsMixin:
         atype: str = "host",
         source: str = "manual",
         observations: str = "",
-        title: str = "",
     ) -> dict:
         _validate_endpoint_name(name)
         _validate_observations(observations, field=f"endpoint {name!r} observations")
         ep = {
             "id": uuid.uuid4().hex[:8],
             "name": name,
-            "title": title,
             "type": atype,
             "observations": observations,
             "source": source,
@@ -67,10 +63,10 @@ class EndpointsMixin:
                 field=f"endpoint {endpoint.get('name') or endpoint_id!r} observations",
             )
         # The endpoint address (name) is the endpoint's identity and is fixed once
-        # created. The title is a free label and can be edited.
+        # created.
         if fields.get("name") is not None and fields["name"] != endpoint.get("name"):
             raise ValueError("endpoint address cannot be changed after creation")
-        for k in ("title", "type", "observations"):
+        for k in ("type", "observations"):
             if k in fields and fields[k] is not None:
                 endpoint[k] = fields[k]
         if fields.get("status") is not None:

@@ -246,7 +246,6 @@ class ProjectService:
                 a.get("type", "host"),
                 source="initial",
                 observations=a.get("observations", ""),
-                title=a.get("title", ""),
             )
         self._repo.save(project)
         self._project = project

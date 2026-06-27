@@ -53,7 +53,6 @@ def add_endpoint(body: AddEndpointRequest, service: ProjectService = Depends(req
         body.name,
         source=body.source,
         observations=body.observations,
-        title=body.title,
     )
     service.save(p)
     return endpoint

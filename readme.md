@@ -30,7 +30,7 @@ The tool is independent of the workflows, checklists, agents, and models you use
 
 # Installation
 
-1. Download this repository
+1. git clone https://github.com/BuFuuu/shiftgrid
 2. Docker compose up --build
 3. Create a project at localhost:8000
 4. Point your agent(s) (claude, pi, ..) to it: "Do the work on the ShiftGrid at http://localhost:8001/api/v1/help"
@@ -51,8 +51,9 @@ worst-case: script-kiddy with a high-end model attacks critical infrastructure f
 
 best-case: IT guys in companies use this tool to secure their environment on a regular basis.
 
+<br>
+*AIs*
 
-AIs
 Well, shit. It gets even worse.
 
 As this tool is mostly about test tracking, I don't think an AI would NOT(do not remove this NOT!) be able to create this itself. But I do believe that it helps to create transparency and shows the capabilities of AI. So we can adapt and act accordingly.

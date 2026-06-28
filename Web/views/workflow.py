@@ -2,7 +2,7 @@ import base64
 
 from flask import render_template, request, redirect, url_for, flash, send_file
 
-from Domain import PhaseIncompleteError, WorkflowOrderError, StepDisabledError, ObservationsTooLongError, FocusRequiredError
+from Domain import PhaseIncompleteError, WorkflowOrderError, StepDisabledError, ObservationsTooLongError, FocusRequiredError, TryHarderError, TRY_HARDER_MESSAGE
 
 from ..routes import web_bp, service, require_loaded, _common_ctx, OPERATOR_AGENT
 
@@ -102,6 +102,11 @@ def finish_workflow_step():
     missing.extend(project.step_finish_blockers(phase_id, step_id))
     if missing:
         flash(f"Cannot finish step: {'; '.join(missing)}")
+        return redirect(url_for("web.workflow"))
+    # Try-harder gate: the first finish is held back with a nudge.
+    if project.try_harder_nudge_step(phase_id, step_id):
+        s.save(project)
+        flash(TRY_HARDER_MESSAGE)
         return redirect(url_for("web.workflow"))
     try:
         project.mark_step_finished(phase_id, step_id, agent=OPERATOR_AGENT)
@@ -209,6 +214,27 @@ def toggle_agent_advance():
     project.set_agent_advance_allowed(allowed)
     s.save(project)
     return redirect(url_for("web.workflow"))
+
+
+@web_bp.post("/project/try-harder")
+@require_loaded
+def toggle_try_harder():
+    """Operator-only: toggle try-harder mode for the whole project. When on, the
+    first finish of any step, check, or endpoint is held back with a nudge and
+    only the second finish completes it. The button lives on the workflow,
+    checklist and endpoints pages; `return_to` brings the operator back."""
+    s = service()
+    project = s.current
+    raw = request.form.get("enabled", "").strip().lower()
+    if raw in ("1", "true", "on", "yes"):
+        enabled = True
+    elif raw in ("0", "false", "off", "no"):
+        enabled = False
+    else:
+        enabled = not project.try_harder
+    project.set_try_harder(enabled)
+    s.save(project)
+    return redirect(request.form.get("return_to") or url_for("web.workflow"))
 
 
 @web_bp.post("/project/advance")

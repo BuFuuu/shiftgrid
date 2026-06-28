@@ -2,7 +2,7 @@ import base64
 
 from flask import render_template, request, redirect, url_for, flash, send_file
 
-from Domain import ObservationsTooLongError, FocusRequiredError
+from Domain import ObservationsTooLongError, FocusRequiredError, TryHarderError
 
 from ..routes import web_bp, service, require_loaded, _common_ctx, OPERATOR_AGENT
 
@@ -82,6 +82,12 @@ def finish_check(check_id):
     return_to = request.form.get("return_to", "checklist")
     try:
         project.finish_global_check(check_id, agent=OPERATOR_AGENT)
+    except TryHarderError as e:
+        # Try-harder gate: the first finish is held back with a nudge. Persist the
+        # flag so the second finish completes it.
+        s.save(project)
+        flash(str(e))
+        return redirect(url_for(f"web.{return_to}"))
     except ValueError as e:
         flash(str(e))
         return redirect(url_for(f"web.{return_to}"))

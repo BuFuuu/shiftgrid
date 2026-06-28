@@ -14,6 +14,21 @@
 {% if focused_by %}<span class="agent-tag agent-tag--focused" data-tooltip="Focused by {{ focused_by.alias }} (id {{ focused_by.id }})"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>{{ focused_by.alias }}</span>{% endif %}{% if done_by %}<span class="agent-tag agent-tag--done" data-tooltip="Done by {{ done_by.alias }} (id {{ done_by.id }})"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>{{ done_by.alias }}</span>{% endif %}
 {%- endmacro %}
 
+{# Bottom-right "Try harder" pill toggle. Project-wide operator switch: when on,
+   the first finish of any step/check/endpoint is held back with a nudge and only
+   the second finish completes it. `on` is project.try_harder; `return_to` brings
+   the operator back to the page they toggled it from. #}
+{% macro try_harder_switch(return_to, on) -%}
+<form method="post" action="{{ url_for('web.toggle_try_harder') }}" class="advance-access-form">
+  <input type="hidden" name="return_to" value="{{ return_to }}">
+  <input type="hidden" name="enabled" value="{{ '0' if on else '1' }}">
+  <button type="submit" class="try-harder-switch{% if on %} on{% endif %}" role="switch" aria-checked="{{ 'true' if on else 'false' }}" data-tooltip="{% if on %}Try-harder mode is ON — the first finish of any step, check or endpoint is held back with a 'try harder' nudge; the second finish completes it. Click to turn off.{% else %}Try-harder mode is OFF — click to make the first finish of every step, check and endpoint return a 'try harder' nudge before it completes.{% endif %}">
+    <span class="agent-advance-switch-label">Try harder</span>
+    <span class="agent-advance-switch-track" aria-hidden="true"><span class="agent-advance-switch-knob"></span></span>
+  </button>
+</form>
+{%- endmacro %}
+
 {% macro section_icon(s) -%}
 {% if s == 'workflow' %}<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="6" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 6H15.5M18 8.5V15.5M15.5 18H8.5M6 15.5V8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
 {%- elif s == 'checklist' %}<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 12l3 3 5-6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>

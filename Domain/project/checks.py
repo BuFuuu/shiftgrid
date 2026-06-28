@@ -317,7 +317,12 @@ class ChecksMixin:
                 f"Set status (PUT /api/v1/check/{check_id}/status) and observations "
                 f"(PUT /api/v1/check/{check_id}/observations) first."
             )
+        # Try-harder gate: the first finish of a not-yet-finished check is held
+        # back with a nudge (re-finishing an already-finished check is exempt).
+        if not r.get("finished") and self.try_harder_nudge(r):
+            raise TryHarderError(TRY_HARDER_MESSAGE)
         r["finished"] = True
+        r.pop("try_harder_nudged", None)
         r.pop("focused_by", None)
         if agent is not None:
             r["done_by"] = agent

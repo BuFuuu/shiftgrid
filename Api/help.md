@@ -27,6 +27,12 @@ what's already in progress, prioritize unassigned work, and avoid duplication. T
 
 Add raw_captures to workflow steps, check and findings when ever a tool produced meaning full output or you want to add evidence like a raw file or a screenshot to your observations. Do not skip this step. It is part of the loops! Never upload information that basically just repeat the observation.
 
+**Try-harder mode (operator switch).** When it is on, the *first* `finish` of a
+step, check, or endpoint does not complete it: you get a 409 `{"error":
+"try_harder"}` nudging you to review and deepen your work. Do that pass (revise
+observations/evidence if warranted — but keep it real), then call `finish` again;
+the second call actually finishes it.
+
 Full OpenAPI spec: `/api/v1/openapi.json` · interactive docs: `/api/v1/docs`.
 
 # Agent Workflow Loop

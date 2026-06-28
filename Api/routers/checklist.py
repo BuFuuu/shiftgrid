@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from Application import ProjectService
+from Domain import TryHarderError
 
 from ..deps import require_loaded, require_agent, Agent
 from ..schemas import (
@@ -206,6 +207,11 @@ def finish_check(
     p = service.current
     try:
         r = p.finish_global_check(check_id, agent=agent.tag())
+    except TryHarderError:
+        # Try-harder mode held this finish back; persist the nudge flag so the
+        # second finish goes through, then let the global handler format the 409.
+        service.save(p)
+        raise
     except ValueError as e:
         msg = str(e)
         if msg.startswith("unknown check"):

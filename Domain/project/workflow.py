@@ -523,6 +523,16 @@ class WorkflowMixin:
                 ]
         return []
 
+    def try_harder_nudge_step(self, phase_id: str, step_id: str) -> bool:
+        """Try-harder gate for finishing a workflow step. Checked by the finish
+        handlers *before* the notes gate (so the first finish doesn't consume a
+        notes edit while leaving the step unfinished). See try_harder_nudge."""
+        key = self._step_key(phase_id, step_id)
+        state = self.workflow_steps.setdefault(
+            key, {"status": "pending", "observations": "", "ts": None}
+        )
+        return self.try_harder_nudge(state)
+
     def mark_step_finished(self, phase_id: str, step_id: str, agent: dict | None = None) -> dict:
         """Flip the `finished` flag on a workflow step. POST /workflow/.../finish
         is the only call (besides the Web UI Finish button) that does this — PUT
@@ -535,6 +545,7 @@ class WorkflowMixin:
             key, {"status": "pending", "observations": "", "ts": None}
         )
         state["finished"] = True
+        state.pop("try_harder_nudged", None)
         state.pop("focused_by", None)
         if agent is not None:
             state["done_by"] = agent

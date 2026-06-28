@@ -62,6 +62,33 @@ class ProjectBase:
         self.data["agent_advance_allowed"] = bool(value)
 
     @property
+    def try_harder(self) -> bool:
+        """When True, the first finish of any workflow step, global check, or
+        endpoint is intercepted with a 'try harder' nudge instead of completing
+        it; the item only finishes on the second finish call. Off by default. A
+        project-wide switch the operator toggles from the Web UI."""
+        return bool(self.data.get("try_harder", False))
+
+    def set_try_harder(self, value: bool) -> None:
+        self.data["try_harder"] = bool(value)
+
+    def try_harder_nudge(self, holder: dict) -> bool:
+        """Try-harder gate for a finish action, operating on the item's state
+        dict (a step state, a check's `_global` result, or an endpoint). With
+        try-harder mode on, the first finish is intercepted: set the item's nudge
+        flag and return True — the caller must then NOT finish, but surface
+        TRY_HARDER_MESSAGE so the agent does a deeper pass and calls finish again.
+        Returns False when the mode is off or the item was already nudged, so the
+        second finish proceeds. The finish methods clear the flag, so a reopened
+        item nudges again."""
+        if not self.try_harder:
+            return False
+        if holder.get("try_harder_nudged"):
+            return False
+        holder["try_harder_nudged"] = True
+        return True
+
+    @property
     def timezone(self) -> str:
         """IANA timezone name used when rendering timestamps for this project."""
         tz = self.data.get("timezone")

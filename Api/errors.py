@@ -10,6 +10,7 @@ from Domain import (
     ObservationsTooLongError,
     ProjectNotFoundError,
     ScopeLockedError,
+    TryHarderError,
     WorkflowOrderError,
 )
 
@@ -55,6 +56,16 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=409,
             content={"detail": {"error": exc.kind, "message": str(exc), "fix": exc.fix}},
+        )
+
+    @app.exception_handler(TryHarderError)
+    async def _try_harder(request: Request, exc: TryHarderError):
+        # Try-harder mode: the first finish is held back. 409 (same family as the
+        # other recoverable finish gates) with a `try_harder` code so the agent
+        # knows to do a deeper pass and call finish again.
+        return JSONResponse(
+            status_code=409,
+            content={"detail": {"error": "try_harder", "message": str(exc)}},
         )
 
     @app.exception_handler(ObservationsTooLongError)

@@ -8,6 +8,8 @@ from Domain import (
     PhaseIncompleteError,
     WorkflowOrderError,
     StepDisabledError,
+    TryHarderError,
+    TRY_HARDER_MESSAGE,
 )
 
 from ..deps import require_loaded, require_agent, Agent
@@ -427,6 +429,12 @@ def finish_phase_step(
     # Re-calling /finish on an already-finished step is idempotent and skips
     # the notes gate — the agent already paid that cost the first time.
     if not already_finished:
+        # Try-harder gate runs before the notes gate so the first finish doesn't
+        # consume a notes edit while leaving the step unfinished. Persist the
+        # nudge flag so the second call (which goes through) is recognised.
+        if p.try_harder_nudge_step(phase_id, step_id):
+            service.save(p)
+            raise TryHarderError(TRY_HARDER_MESSAGE)
         _enforce_notes_update(p, body.notes_old_string, body.notes_new_string)
         p.mark_step_finished(phase_id, step_id, agent=agent.tag())
         service.save(p)

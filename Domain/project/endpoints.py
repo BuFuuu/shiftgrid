@@ -228,6 +228,12 @@ class EndpointsMixin:
                 more = f" + {len(unfinished) - 5} more" if len(unfinished) > 5 else ""
                 raise ValueError(f"endpoint {endpoint_id} still has pending checks ({titles}{more})")
         if status == "tested":
+            # Try-harder gate: the first finish is held back with a nudge. Runs
+            # after the tested guards above, so an unfinishable endpoint hits the
+            # real error first, not the nudge.
+            if self.try_harder_nudge(endpoint):
+                raise TryHarderError(TRY_HARDER_MESSAGE)
+            endpoint.pop("try_harder_nudged", None)
             endpoint.pop("focused_by", None)
             if agent is not None:
                 endpoint["done_by"] = agent

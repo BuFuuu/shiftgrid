@@ -2,7 +2,7 @@ import re
 
 from flask import render_template, request, redirect, url_for, flash
 
-from Domain import ObservationsTooLongError
+from Domain import ObservationsTooLongError, TryHarderError
 
 from ..routes import web_bp, service, require_loaded, _common_ctx, OPERATOR_AGENT
 
@@ -98,6 +98,12 @@ def set_endpoint_status(endpoint_id):
     return_to = request.form.get("return_to") or url_for("web.endpoints")
     try:
         project.set_endpoint_status(endpoint_id, status, agent=OPERATOR_AGENT)
+    except TryHarderError as e:
+        # Try-harder gate: the first finish (-> tested) is held back with a nudge.
+        # Persist the flag so the second finish completes it.
+        s.save(project)
+        flash(str(e))
+        return redirect(return_to)
     except ValueError as e:
         flash(str(e))
         return redirect(return_to)

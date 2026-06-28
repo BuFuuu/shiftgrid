@@ -292,6 +292,10 @@
     <p class="muted">No endpoint checks.</p>
   {% endfor %}
 </section>
+
+<div class="floating-advance">
+  {{ try_harder_switch(url_for('web.checklist'), project.try_harder) }}
+</div>
 <script>
   (function () {
     const storageKey = 'pg-checklist-open-categories:{{ project.id }}';

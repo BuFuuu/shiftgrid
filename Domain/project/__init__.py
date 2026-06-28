@@ -10,6 +10,8 @@ from ._shared import (
     WorkflowOrderError,
     StepDisabledError,
     FocusRequiredError,
+    TryHarderError,
+    TRY_HARDER_MESSAGE,
     NotesEditError,
     NotesOldStringNotFound,
     NotesOldStringNotUnique,

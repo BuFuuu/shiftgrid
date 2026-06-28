@@ -21,11 +21,12 @@
   </form>
   <form method="post" action="{{ url_for('web.toggle_agent_advance') }}" class="advance-access-form">
     <input type="hidden" name="allowed" value="{{ '0' if project.agent_advance_allowed else '1' }}">
-    <button type="submit" class="agent-advance-switch{% if project.agent_advance_allowed %} on{% endif %}" role="switch" aria-checked="{{ 'true' if project.agent_advance_allowed else 'false' }}" title="{% if project.agent_advance_allowed %}Agents may advance phases on their own — click to restrict advancing to the operator only{% else %}Only the operator may advance phases — click to also let agents advance on their own{% endif %}">
-      <span class="agent-advance-switch-label">Agents may advance</span>
+    <button type="submit" class="agent-advance-switch{% if project.agent_advance_allowed %} on{% endif %}" role="switch" aria-checked="{{ 'true' if project.agent_advance_allowed else 'false' }}" data-tooltip="{% if project.agent_advance_allowed %}Auto advance is ON — agents may advance phases on their own. Click to restrict advancing to the operator only.{% else %}Auto advance is OFF — only the operator may advance phases. Click to also let agents advance on their own.{% endif %}">
+      <span class="agent-advance-switch-label">Auto advance</span>
       <span class="agent-advance-switch-track" aria-hidden="true"><span class="agent-advance-switch-knob"></span></span>
     </button>
   </form>
+  {{ try_harder_switch(url_for('web.workflow'), project.try_harder) }}
 </div>
 {% if next_action %}
 <script>

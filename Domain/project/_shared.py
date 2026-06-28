@@ -66,6 +66,24 @@ class FocusRequiredError(Exception):
         self.fix = fix or {}
 
 
+class TryHarderError(Exception):
+    """Raised by a finish action when try-harder mode is on and the item is being
+    finished for the first time. The finish is held back and the agent is nudged
+    to do a deeper pass and then call finish again — the second call goes through.
+    Carries TRY_HARDER_MESSAGE as its message."""
+
+
+# The nudge an agent gets back on the first finish while try-harder mode is on.
+TRY_HARDER_MESSAGE = (
+    "Good job! But now try harder! Review what you have done and think harder "
+    "about task. Do a deepdive and spend a lot of time figuring out if there is "
+    "more to do or better to do. Create a plan on that and try to verify "
+    "yourself. Be critical and do not give up! Do not make stuff up though - "
+    "keep it real! After you have done that and maybe change the observations or "
+    "evidence call finish again to actually finish this task."
+)
+
+
 class NotesEditError(Exception):
     """Base class for notes-edit failures."""
 
@@ -215,6 +233,8 @@ __all__ = [
     'WorkflowOrderError',
     'StepDisabledError',
     'FocusRequiredError',
+    'TryHarderError',
+    'TRY_HARDER_MESSAGE',
     'NotesEditError',
     'NotesOldStringNotFound',
     'NotesOldStringNotUnique',

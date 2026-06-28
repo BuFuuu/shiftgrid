@@ -3,6 +3,16 @@
 {% block content_class %}endpoints-content{% endblock %}
 {% block page_subtitle %}<span class="page-header-subtitle">{{ project.endpoints | length }} total</span>{% endblock %}
 {% block content %}
+{# When an endpoint name is a URL (scheme://host[:port]/path) bold the path so the
+   operator can scan distinct routes on the same host. Bare hosts / IP:port pass through. #}
+{% macro endpoint_name(name) -%}
+  {%- if '://' in name and '/' in name.split('://', 1)[1] -%}
+    {%- set rest = name.split('://', 1)[1] -%}
+    {{- name.split('://', 1)[0] }}://{{ rest.split('/', 1)[0] }}<strong>/{{ rest.split('/', 1)[1] }}</strong>
+  {%- else -%}
+    {{- name -}}
+  {%- endif -%}
+{%- endmacro %}
 {% set endpoint_checks = project.checklist | selectattr('scope', 'equalto', 'per_endpoint') | list %}
 {% set endpoint_check_groups = {} %}
 {% set endpoint_check_group_order = [] %}
@@ -184,7 +194,7 @@
           <details id="endpoint-{{ a.id }}" class="endpoint-card endpoint-status-{{ endpoint_status | replace('-', '_') }}" data-statuses="{{ endpoint_status }}{% if recorded.vulnerable %} vulnerable{% endif %}">
             <summary>
               <div class="endpoint-summary-main">
-                <span class="endpoint-title"><code>{{ a.name }}</code></span>
+                <span class="endpoint-title"><code>{{ endpoint_name(a.name) }}</code></span>
               </div>
               <div class="endpoint-summary-meta">
                 <span class="pill">{{ a.type }}</span>
@@ -373,6 +383,7 @@
   <button type="button" class="btn primary" id="add-endpoint-btn">+ Add endpoint</button>
   <button type="button" class="btn primary" id="bulk-import-btn">Bulk import</button>
   <button type="button" class="btn primary" id="add-group-btn">+ Feature group</button>
+  {{ try_harder_switch(url_for('web.endpoints'), project.try_harder) }}
 </div>
 
 <div class="endpoint-modal-backdrop" id="add-endpoint-modal" hidden>
@@ -602,18 +613,37 @@
       });
     });
 
-    // Unfold all toggles both the feature groups and the endpoint cards inside them.
-    const foldables = groups.concat(cards);
-    function syncFoldButton() {
-      const allOpen = foldables.length > 0 && foldables.every(function (el) { return el.open; });
-      foldButton.classList.toggle('active', allOpen);
-      foldButton.querySelector('.check-filter-stat-label').textContent = allOpen ? 'Fold all' : 'Unfold all';
+    // The fold button cycles through three states:
+    //   folded   - groups and endpoint cards all collapsed
+    //   groups   - groups open, endpoint cards collapsed
+    //   unfolded - groups and endpoint cards all open
+    function currentFoldState() {
+      const groupsOpen = groups.length > 0 && groups.every(function (g) { return g.open; });
+      const cardsOpen = cards.length > 0 && cards.every(function (c) { return c.open; });
+      if (groupsOpen && cardsOpen) return 'unfolded';
+      if (groupsOpen) return 'groups';
+      return 'folded';
     }
-    foldables.forEach(function (el) { el.addEventListener('toggle', syncFoldButton); });
-    foldButton.addEventListener('click', function () {
-      const shouldOpen = foldables.some(function (el) { return !el.open; });
-      foldables.forEach(function (el) { el.open = shouldOpen; });
+    function applyFoldState(state) {
+      const groupsOpen = state !== 'folded';
+      const cardsOpen = state === 'unfolded';
+      groups.forEach(function (g) { g.open = groupsOpen; });
+      cards.forEach(function (c) { c.open = cardsOpen; });
       syncFoldButton();
+    }
+    function syncFoldButton() {
+      const state = currentFoldState();
+      // Label shows what the next click will do.
+      const label = state === 'folded' ? 'Unfold groups'
+        : state === 'groups' ? 'Unfold all'
+        : 'Fold all';
+      foldButton.classList.toggle('active', state === 'unfolded');
+      foldButton.querySelector('.check-filter-stat-label').textContent = label;
+    }
+    groups.concat(cards).forEach(function (el) { el.addEventListener('toggle', syncFoldButton); });
+    foldButton.addEventListener('click', function () {
+      const next = { folded: 'groups', groups: 'unfolded', unfolded: 'folded' }[currentFoldState()];
+      applyFoldState(next);
     });
 
     function runSort(toSorted) {

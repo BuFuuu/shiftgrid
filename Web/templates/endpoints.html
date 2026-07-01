@@ -199,6 +199,7 @@
               <div class="endpoint-summary-meta">
                 <span class="pill">{{ a.type }}</span>
                 <span class="pill endpoint-status-pill endpoint-status-pill-{{ endpoint_status | replace('-', '_') }}">{{ endpoint_status }}</span>
+                {{ runs_control(url_for('web.set_endpoint_runs', endpoint_id=a.id), a.get('runs', 1), a.get('runs_completed', 0), {'return_to': url_for('web.endpoints') ~ '#endpoint-' ~ a.id}, 'endpoint') }}
                 {% if endpoint_status == 'tested' and a.tested_at %}
                   <span class="done-at-stamp" title="Tested">
                     <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
@@ -383,7 +384,7 @@
   <button type="button" class="btn primary" id="add-endpoint-btn">+ Add endpoint</button>
   <button type="button" class="btn primary" id="bulk-import-btn">Bulk import</button>
   <button type="button" class="btn primary" id="add-group-btn">+ Feature group</button>
-  {{ try_harder_switch(url_for('web.endpoints'), project.try_harder) }}
+  {{ try_harder_switch(url_for('web.endpoints'), project.try_harder_endpoints, 'endpoints') }}
 </div>
 
 <div class="endpoint-modal-backdrop" id="add-endpoint-modal" hidden>

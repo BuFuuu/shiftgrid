@@ -95,6 +95,8 @@ def _ad_resolve_ref(schema: dict, root: dict) -> tuple[dict, str | None]:
 def _ad_type_str(schema: dict, root: dict) -> str:
     if not schema:
         return "any"
+    if schema.get("format") == "binary":
+        return "file"
     if "$ref" in schema:
         _, name = _ad_resolve_ref(schema, root)
         return name or "object"
@@ -156,10 +158,16 @@ def _ad_body(operation: dict, root: dict) -> str | None:
     body = operation.get("requestBody")
     if not body:
         return None
-    content = (body.get("content") or {}).get("application/json")
-    if not content:
-        return None
-    return _ad_fields(content.get("schema") or {}, root)
+    content = body.get("content") or {}
+    json_c = content.get("application/json")
+    if json_c:
+        return _ad_fields(json_c.get("schema") or {}, root)
+    # File-upload routes (raw captures) carry a multipart/form-data body, not JSON.
+    # Render its form fields too, prefixed so the agent knows to send a real upload.
+    mp = content.get("multipart/form-data")
+    if mp:
+        return "multipart/form-data " + _ad_fields(mp.get("schema") or {}, root)
+    return None
 
 
 def _top_segment(path: str) -> str:

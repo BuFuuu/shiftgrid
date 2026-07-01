@@ -66,22 +66,74 @@ class FocusRequiredError(Exception):
         self.fix = fix or {}
 
 
-class TryHarderError(Exception):
-    """Raised by a finish action when try-harder mode is on and the item is being
-    finished for the first time. The finish is held back and the agent is nudged
-    to do a deeper pass and then call finish again — the second call goes through.
-    Carries TRY_HARDER_MESSAGE as its message."""
+class RunAgainError(Exception):
+    """Raised by a finish action (finish a global check, mark an endpoint tested)
+    when the item is configured to run more times than it has been run. The
+    finish is NOT applied as terminal; instead the item is reset to its starting
+    state — observations kept — and the agent is told to run through it again,
+    harder. Surfaced as a 409. Phase runs do not use this exception (advancing is
+    a valid action that loops rather than fails); they carry the message on the
+    advance response instead."""
+
+    def __init__(self, message: str, *, runs_completed: int = 0, target: "int | str" = 1):
+        super().__init__(message)
+        self.runs_completed = runs_completed
+        self.target = target
 
 
-# The nudge an agent gets back on the first finish while try-harder mode is on.
-TRY_HARDER_MESSAGE = (
-    "Good job! But now try harder! Review what you have done and think harder "
-    "about task. Do a deepdive and spend a lot of time figuring out if there is "
-    "more to do or better to do. Create a plan on that and try to verify "
-    "yourself. Be critical and do not give up! Do not make stuff up though - "
-    "keep it real! After you have done that and maybe change the observations or "
-    "evidence call finish again to actually finish this task."
-)
+def _normalize_runs(value) -> "int | str":
+    """Clean a configured run count into a positive int or the string
+    'indefinite'. The count is the TOTAL number of times an item runs: 1 (the
+    default) = run once, no looping. Anything unset, non-numeric, or < 1 falls
+    back to 1. Accepts a few spellings of 'indefinite' from hand-edited JSON /
+    operator input, plus the ∞ glyph the UI renders."""
+    if isinstance(value, bool):  # bool is an int subclass — never a count
+        return 1
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in ("indefinite", "indefinitely", "infinite", "infinity", "inf", "∞"):
+            return "indefinite"
+        try:
+            value = int(v)
+        except ValueError:
+            return 1
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return 1
+    return n if n >= 1 else 1
+
+
+def _runs_should_loop(target, runs_completed: int) -> bool:
+    """True when, after completing this run, more runs remain — i.e. the finish
+    should reset the item and loop instead of moving on. `runs_completed` counts
+    runs already looped, NOT counting the one being completed now. target=1 (the
+    default) never loops; 'indefinite' always loops until the operator lowers the
+    number."""
+    target = _normalize_runs(target)
+    if target == "indefinite":
+        return True
+    return (runs_completed + 1) < target
+
+
+def _bump_runs(current, delta: int) -> "int | str":
+    """Add `delta` to a run count, flooring at 1 and leaving 'indefinite' alone.
+    Used by the 'Try harder' switches to bump a whole category of run counts."""
+    current = _normalize_runs(current)
+    if current == "indefinite":
+        return current
+    return max(1, int(current) + delta)
+
+
+def _runs_message(kind: str, subject: str, run_number: int, target) -> str:
+    """The nudge surfaced when an item resets to run again. `run_number` is the
+    run about to start (1-based); `kind` is 'phase' / 'check' / 'endpoint';
+    `subject` names the thing (phase name, check title, endpoint address)."""
+    of = "∞" if _normalize_runs(target) == "indefinite" else str(target)
+    return (
+        f"{subject} reset for run {run_number}/{of} — work through it again, "
+        f"harder, using what you learned last time."
+    )
 
 
 class NotesEditError(Exception):
@@ -102,7 +154,7 @@ class NotesImmutableRegionViolation(NotesEditError):
     pass
 
 
-OBSERVATIONS_MAX_WORDS = 120
+OBSERVATIONS_MAX_WORDS = 200
 _OBSERVATION_WORD_RE = re.compile(r"\w+", re.UNICODE)
 
 
@@ -233,8 +285,11 @@ __all__ = [
     'WorkflowOrderError',
     'StepDisabledError',
     'FocusRequiredError',
-    'TryHarderError',
-    'TRY_HARDER_MESSAGE',
+    'RunAgainError',
+    '_normalize_runs',
+    '_runs_should_loop',
+    '_bump_runs',
+    '_runs_message',
     'NotesEditError',
     'NotesOldStringNotFound',
     'NotesOldStringNotUnique',

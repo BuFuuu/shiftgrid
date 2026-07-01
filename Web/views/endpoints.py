@@ -2,7 +2,7 @@ import re
 
 from flask import render_template, request, redirect, url_for, flash
 
-from Domain import ObservationsTooLongError, TryHarderError
+from Domain import ObservationsTooLongError, RunAgainError
 
 from ..routes import web_bp, service, require_loaded, _common_ctx, OPERATOR_AGENT
 
@@ -98,12 +98,29 @@ def set_endpoint_status(endpoint_id):
     return_to = request.form.get("return_to") or url_for("web.endpoints")
     try:
         project.set_endpoint_status(endpoint_id, status, agent=OPERATOR_AGENT)
-    except TryHarderError as e:
-        # Try-harder gate: the first finish (-> tested) is held back with a nudge.
-        # Persist the flag so the second finish completes it.
+    except RunAgainError as e:
+        # Runs gate: marking tested reset the endpoint for another run. Persist the
+        # reset and surface the nudge.
         s.save(project)
         flash(str(e))
         return redirect(return_to)
+    except ValueError as e:
+        flash(str(e))
+        return redirect(return_to)
+    s.save(project)
+    return redirect(return_to)
+
+
+@web_bp.post("/project/endpoints/<endpoint_id>/runs")
+@require_loaded
+def set_endpoint_runs(endpoint_id):
+    """Operator-only: set how many times this endpoint runs before it settles.
+    Accepts a number, or 'indefinite' / '∞' for an unbounded loop."""
+    s = service()
+    project = s.current
+    return_to = request.form.get("return_to") or url_for("web.endpoints")
+    try:
+        project.set_endpoint_runs(endpoint_id, request.form.get("runs"))
     except ValueError as e:
         flash(str(e))
         return redirect(return_to)

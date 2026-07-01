@@ -5,7 +5,7 @@ import random
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from Application import ProjectService
-from Domain import TryHarderError
+from Domain import RunAgainError
 
 from ..deps import require_loaded, require_agent, Agent
 from ..schemas import (
@@ -87,9 +87,9 @@ def update_endpoint(
     fields = body.model_dump(exclude_unset=True, exclude={"base_observations"})
     try:
         endpoint = p.update_endpoint(endpoint_id, agent=agent.tag(), **fields)
-    except TryHarderError:
-        # status=tested while try-harder mode is on: hold the finish back, persist
-        # the nudge flag, and let the global handler format the 409.
+    except RunAgainError:
+        # Runs gate reset this endpoint for another testing run; persist the reset
+        # and let the global handler format the 409.
         service.save(p)
         raise
     except ValueError as e:
@@ -162,9 +162,9 @@ def finish_endpoint(
     p = service.current
     try:
         endpoint = p.set_endpoint_status(endpoint_id, "tested", agent=agent.tag())
-    except TryHarderError:
-        # Try-harder mode held this finish back; persist the nudge flag so the
-        # second finish goes through, then let the global handler format the 409.
+    except RunAgainError:
+        # Runs gate reset this endpoint for another testing run; persist the reset
+        # and let the global handler format the 409.
         service.save(p)
         raise
     except ValueError as e:

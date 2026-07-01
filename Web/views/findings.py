@@ -1,7 +1,5 @@
 import re
 
-import base64
-
 from flask import render_template, request, redirect, url_for, flash, send_file
 
 from ..routes import web_bp, service, require_loaded, _common_ctx
@@ -177,12 +175,11 @@ def add_finding_evidence(finding_id):
     if uploaded is None or not uploaded.filename:
         flash("no file selected")
         return redirect(url_for("web.findings"))
-    data_b64 = base64.b64encode(uploaded.read()).decode("ascii")
     try:
         project.add_finding_evidence(
             finding_id,
             uploaded.filename,
-            data_b64,
+            uploaded.read(),
             mime_type=uploaded.mimetype or "application/octet-stream",
             source_type=request.form.get("source_type") or "other",
             description=(request.form.get("description") or "").strip(),

@@ -7,6 +7,9 @@ class ProjectBase:
     def __init__(self, folder: Path, data: dict):
         self.folder = Path(folder)
         self.data = data
+        # Transient (never persisted): set by advance_phase when a phase loops
+        # instead of advancing, so the API/Web can surface the re-run nudge.
+        self.run_notice: str | None = None
 
     @property
     def id(self) -> str:
@@ -30,9 +33,10 @@ class ProjectBase:
 
     @property
     def notes_required(self) -> bool:
-        """When True, agent finish/done/advance actions must carry a notes edit
+        """When True, agent finish/done actions must carry a notes edit
         (notes_old_string/notes_new_string) — Edit-tool semantics. Enforces
-        consistent short-term-memory updates without adding extra API round-trips."""
+        consistent short-term-memory updates without adding extra API round-trips.
+        Phase advance is exempt — advancing never requires a notes diff."""
         return bool(self.data.get("notes_required", True))
 
     def set_notes_required(self, value: bool) -> None:
@@ -62,31 +66,19 @@ class ProjectBase:
         self.data["agent_advance_allowed"] = bool(value)
 
     @property
-    def try_harder(self) -> bool:
-        """When True, the first finish of any workflow step, global check, or
-        endpoint is intercepted with a 'try harder' nudge instead of completing
-        it; the item only finishes on the second finish call. Off by default. A
-        project-wide switch the operator toggles from the Web UI."""
-        return bool(self.data.get("try_harder", False))
+    def try_harder_checks(self) -> bool:
+        """Reflects the checklist page's 'Try harder' switch. Turning it on adds
+        one run to every global check (off removes one, floored at 1) — see
+        ChecksMixin.set_try_harder_checks. Off by default."""
+        return bool(self.data.get("try_harder_checks", False))
 
-    def set_try_harder(self, value: bool) -> None:
-        self.data["try_harder"] = bool(value)
-
-    def try_harder_nudge(self, holder: dict) -> bool:
-        """Try-harder gate for a finish action, operating on the item's state
-        dict (a step state, a check's `_global` result, or an endpoint). With
-        try-harder mode on, the first finish is intercepted: set the item's nudge
-        flag and return True — the caller must then NOT finish, but surface
-        TRY_HARDER_MESSAGE so the agent does a deeper pass and calls finish again.
-        Returns False when the mode is off or the item was already nudged, so the
-        second finish proceeds. The finish methods clear the flag, so a reopened
-        item nudges again."""
-        if not self.try_harder:
-            return False
-        if holder.get("try_harder_nudged"):
-            return False
-        holder["try_harder_nudged"] = True
-        return True
+    @property
+    def try_harder_endpoints(self) -> bool:
+        """Reflects the endpoints page's 'Try harder' switch. Turning it on adds
+        one run to every endpoint (off removes one, floored at 1), and new
+        endpoints are created at runs=2 while it is on — see
+        EndpointsMixin.set_try_harder_endpoints. Off by default."""
+        return bool(self.data.get("try_harder_endpoints", False))
 
     @property
     def timezone(self) -> str:
@@ -125,20 +117,18 @@ class ProjectBase:
         self,
         rel_dir: Path,
         name: str,
-        data_b64: str,
+        data: bytes,
         mime_type: str,
         source_type: str = "other",
         description: str = "",
     ) -> dict:
+        if not data:
+            raise ValueError("empty evidence payload")
         eid = uuid.uuid4().hex[:8]
         safe = _safe_name(name)
         rel_path = rel_dir / f"{eid}_{safe}"
         (self.folder / rel_dir).mkdir(parents=True, exist_ok=True)
-        try:
-            payload = base64.b64decode(data_b64, validate=True)
-        except Exception as e:
-            raise ValueError(f"invalid base64 evidence: {e}")
-        (self.folder / rel_path).write_bytes(payload)
+        (self.folder / rel_path).write_bytes(data)
         return {
             "id": eid,
             "name": name,
@@ -146,7 +136,7 @@ class ProjectBase:
             "source_type": source_type,
             "description": description,
             "path": str(rel_path).replace("\\", "/"),
-            "size": len(payload),
+            "size": len(data),
             "added_at": _now(),
         }
 

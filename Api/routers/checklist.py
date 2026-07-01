@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import random
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from Application import ProjectService
-from Domain import TryHarderError
+from Domain import RunAgainError
 
 from ..deps import require_loaded, require_agent, Agent
 from ..schemas import (
@@ -16,7 +16,9 @@ from ..schemas import (
     CheckStatusUpdateResponse,
     ChecklistTitleEntry,
     RawCaptureMeta,
-    AddRawCaptureRequest,
+    EvidenceSourceType,
+    _AGENT_COMPOSED_DESC,
+    _REALLY_RAW_CAPTURE_DESC,
     UpdateCheckObservationsRequest,
     UpdateCheckStatusRequest,
     FinishCheckResponse,
@@ -26,7 +28,7 @@ from .._common import (
     _endpoint_loop_next,
     _guard_observation_overwrite,
     _update_notes_hint,
-    _reject_unless_attested,
+    _read_raw_capture_upload,
     next_step_to_action,
 )
 
@@ -207,9 +209,9 @@ def finish_check(
     p = service.current
     try:
         r = p.finish_global_check(check_id, agent=agent.tag())
-    except TryHarderError:
-        # Try-harder mode held this finish back; persist the nudge flag so the
-        # second finish goes through, then let the global handler format the 409.
+    except RunAgainError:
+        # Runs gate reset this check for another run; persist the reset and bumped
+        # run counter, then let the global handler format the 409.
         service.save(p)
         raise
     except ValueError as e:
@@ -230,26 +232,51 @@ def finish_check(
     "/check/{check_id}/raw-captures",
     response_model=RawCaptureMeta,
     status_code=201,
-    summary="Put Check Raw Capture  (upload only logs, screenshots, HTTP responses, 3rd party tool output. NEVER EVER upload AI/Agent generated output / summaries / bash-script outputs)",
+    summary="Put Check Raw Capture  (multipart/form-data file upload — logs, screenshots, HTTP responses, 3rd party tool output. NEVER EVER upload AI/Agent generated output / summaries / bash-script outputs)",
 )
 def put_check_raw_capture(
     check_id: str,
-    body: AddRawCaptureRequest,
+    file: UploadFile = File(
+        ...,
+        description="The raw capture file, sent as multipart/form-data. Post the bytes "
+        "directly — do NOT base64-encode and do NOT wrap in JSON. E.g. curl -F 'file=@resp.txt'.",
+    ),
+    source_type: EvidenceSourceType = Form(
+        ...,
+        description="Origin of the bytes: tool_output, screenshot, log, raw_response, "
+        "config, file_content, or other. Self-written summaries go in observations, not here.",
+    ),
+    description: str = Form(
+        ...,
+        min_length=1,
+        description="What this capture shows and why it matters. Shown next to the file in the UI.",
+    ),
+    this_really_is_raw_capture_and_not_an_ai_script: bool = Form(
+        False, description=_REALLY_RAW_CAPTURE_DESC
+    ),
+    agent_composed: bool = Form(True, description=_AGENT_COMPOSED_DESC),
+    endpoint_id: str | None = Form(
+        None, description="For per-endpoint checks, the endpoint this capture belongs to."
+    ),
+    name: str | None = Form(
+        None, description="Optional override for the stored filename; defaults to the uploaded file's name."
+    ),
     service: ProjectService = Depends(require_loaded),
 ):
-    _reject_unless_attested(
-        body.agent_composed,
-        body.this_really_is_raw_capture_and_not_an_ai_script,
+    """Attach raw 3rd-party output to a check. Upload the file as multipart/form-data —
+    the bytes are stored verbatim, no base64."""
+    fname, data, mime = _read_raw_capture_upload(
+        file, agent_composed, this_really_is_raw_capture_and_not_an_ai_script
     )
     p = service.current
     entry = p.add_check_evidence(
         check_id,
-        body.name,
-        body.data,
-        mime_type=body.mime_type,
-        endpoint_id=body.endpoint_id,
-        source_type=body.source_type,
-        description=body.description,
+        name or fname,
+        data,
+        mime_type=mime,
+        endpoint_id=endpoint_id,
+        source_type=source_type,
+        description=description,
     )
     service.save(p)
     return entry

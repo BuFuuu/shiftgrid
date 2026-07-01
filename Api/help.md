@@ -27,13 +27,21 @@ what's already in progress, prioritize unassigned work, and avoid duplication. T
 
 Add raw_captures to workflow steps, check and findings when ever a tool produced meaning full output or you want to add evidence like a raw file or a screenshot to your observations. Do not skip this step. It is part of the loops! Never upload information that basically just repeat the observation.
 
-**Try-harder mode (operator switch).** When it is on, the *first* `finish` of a
-step, check, or endpoint does not complete it: you get a 409 `{"error":
-"try_harder"}` nudging you to review and deepen your work. Do that pass (revise
-observations/evidence if warranted — but keep it real), then call `finish` again;
-the second call actually finishes it.
+**Runs (repeat count).** A phase, global check, or endpoint can be set to run more
+than once for a deeper dive (`runs`: an int, default 1 = once, or `"indefinite"`).
+When you finish a check / mark an endpoint tested / advance a phase that still has
+runs left, it does not settle: it resets to its starting state (status back to
+pending/todo, observations kept) and you get a 409 `{"error": "run_again"}` telling
+you to work through it again, harder, using what you learned last time. On the final
+run it settles normally. The operator's "Try harder" switches are shortcuts: the
+one on the checklist page adds one run (+1) to every global check, the one on the
+endpoints page adds one run (+1) to every endpoint.
 
 Full OpenAPI spec: `/api/v1/openapi.json` · interactive docs: `/api/v1/docs`.
+
+**Raw captures are file uploads** (`multipart/form-data`) — send the file bytes as
+the `file` field, never base64 or JSON. E.g. `curl -F file=@nmap.txt -F source_type=tool_output
+-F description=... -F this_really_is_raw_capture_and_not_an_ai_script=true -F agent_composed=false .../raw-captures`.
 
 # Agent Workflow Loop
      
@@ -41,11 +49,11 @@ Full OpenAPI spec: `/api/v1/openapi.json` · interactive docs: `/api/v1/docs`.
 2. GET /api/v1/workflow/now  — see the current step + next action
 3. PUT /api/v1/workflow/phases/{phase_id}/steps/{step_id} — choose a step to work on and set status to focused. Prioritize pending steps first
 3. action: do the work in your environment
-4. PUT /api/v1/workflow/phases/{phase_id}/steps/{step_id}  — set observations and status (done|skipped) (capped at 120 words) (Use newlines to separate thoughts, `**bold**` for key findings, `*italic*` for emphasis, and `# heading` for section labels)
+4. PUT /api/v1/workflow/phases/{phase_id}/steps/{step_id}  — set observations and status (done|skipped) (capped at 200 words) (Use newlines to separate thoughts, `**bold**` for key findings, `*italic*` for emphasis, and `# heading` for section labels)
 5. POST /api/v1/workflow/phases/{phase_id}/steps/{step_id}/raw-captures (not mandatory but very important)  — attach raw tool output, screenshots, captured HTTP responses, etc. NEVER for anything you wrote, narrated, summarized, or wrapped
 6. POST /api/v1/workflow/phases/{phase_id}/steps/{step_id}/finish  — moves /workflow/now to the next step (when notes_required=true, carry notes_old_string + notes_new_string in the body)
 [7. optional: PATCH /api/v1/notes  — include insights from this step (optional, only when notes_required=false)]
-8. only when phase_complete=true: POST /api/v1/workflow/advance
+8. only when phase_complete=true: POST /api/v1/workflow/advance (advancing never requires a notes diff, even when notes_required=true — PATCH /api/v1/notes separately if you have context to record; a multi-run phase resets its steps to pending and loops instead of advancing — the `next` hint shows `(run N/M)`; see Runs)
 
 # Work-on-Checklist phase loop
 
@@ -58,7 +66,7 @@ During the "Work on Checklist" phase, advance only after every global-scope chec
 5. PUT /api/v1/check/{check_id}/observations 
 6. POST /api/v1/check/{check_id}/raw-captures
 7. PUT /api/v1/check/{check_id}/status  — passed, vulnerable, warning, failed, not applicable (be precise about this! `passed` = ran and target is fine; `vulnerable` = confirmed vuln; `warning` = suspicious-unconfirmed; `failed` = could not run; `not applicable` = check doesn't apply, observations required). Requires the check to be focused first (step 3).
-8. POST /api/v1/check/{check_id}/finish  — requires a recorded result (not pending/focused) and non-empty observations. carries the notes diff inline.
+8. POST /api/v1/check/{check_id}/finish  — requires a recorded result (not pending/focused) and non-empty observations. carries the notes diff inline. (a multi-run check resets to pending and returns 409 `run_again` instead of settling; see Runs)
 9. PATCH /api/v1/notes  — optional, only when notes_required=false
 
 # Work-on-Endpoints phase loop
@@ -78,7 +86,7 @@ Guards: `focused` requires a feature group; `tested` requires checks adjusted + 
 3. POST /api/v1/endpoint/{endpoint_id}/checks-adjusted (confirm step 2. is finished) 
 4. For each endpoint check: do the work now! It's testing time!
 5. PUT /api/v1/check/{check_id}/status and observations with `endpoint_id` set — the response's `next` names the next pending check for this endpoint
-6. POST /api/v1/endpoint/{endpoint_id}/finish  — marks it tested (same guards as before); its `next` points at the next candidate
+6. POST /api/v1/endpoint/{endpoint_id}/finish  — marks it tested (same guards as before); its `next` points at the next candidate (a multi-run endpoint resets to todo and returns 409 `run_again` instead of settling; see Runs)
 
 # API Endpoints
 

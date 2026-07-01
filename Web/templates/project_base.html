@@ -14,19 +14,44 @@
 {% if focused_by %}<span class="agent-tag agent-tag--focused" data-tooltip="Focused by {{ focused_by.alias }} (id {{ focused_by.id }})"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>{{ focused_by.alias }}</span>{% endif %}{% if done_by %}<span class="agent-tag agent-tag--done" data-tooltip="Done by {{ done_by.alias }} (id {{ done_by.id }})"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>{{ done_by.alias }}</span>{% endif %}
 {%- endmacro %}
 
-{# Bottom-right "Try harder" pill toggle. Project-wide operator switch: when on,
-   the first finish of any step/check/endpoint is held back with a nudge and only
-   the second finish completes it. `on` is project.try_harder; `return_to` brings
+{# Bottom-right "Try harder" pill toggle, scoped to one page's items. `scope` is
+   'checks' (checklist page) or 'endpoints' (endpoints page): turning it on adds
+   one run to every item of that kind (off removes one, floored at 1). `on` is the
+   matching project.try_harder_checks / try_harder_endpoints; `return_to` brings
    the operator back to the page they toggled it from. #}
-{% macro try_harder_switch(return_to, on) -%}
+{% macro try_harder_switch(return_to, on, scope) -%}
+{% set noun = 'check' if scope == 'checks' else 'endpoint' %}
 <form method="post" action="{{ url_for('web.toggle_try_harder') }}" class="advance-access-form">
   <input type="hidden" name="return_to" value="{{ return_to }}">
+  <input type="hidden" name="scope" value="{{ scope }}">
   <input type="hidden" name="enabled" value="{{ '0' if on else '1' }}">
-  <button type="submit" class="try-harder-switch{% if on %} on{% endif %}" role="switch" aria-checked="{{ 'true' if on else 'false' }}" data-tooltip="{% if on %}Try-harder mode is ON — the first finish of any step, check or endpoint is held back with a 'try harder' nudge; the second finish completes it. Click to turn off.{% else %}Try-harder mode is OFF — click to make the first finish of every step, check and endpoint return a 'try harder' nudge before it completes.{% endif %}">
+  <button type="submit" class="try-harder-switch{% if on %} on{% endif %}" role="switch" aria-checked="{{ 'true' if on else 'false' }}" data-tooltip="{% if on %}Try-harder is ON — it added one run (+1) to every {{ noun }}. Click to turn off and remove one run from each (floored at 1).{% else %}Try-harder is OFF — click to add one run (+1) to every {{ noun }}, so each one runs one more time for a deeper dive.{% endif %}">
     <span class="agent-advance-switch-label">Try harder</span>
     <span class="agent-advance-switch-track" aria-hidden="true"><span class="agent-advance-switch-knob"></span></span>
   </button>
 </form>
+{%- endmacro %}
+
+{# Runs control: a loop icon carrying the run count (×N). Clicking it opens a tiny
+   inline form (revealed by live.js) to change how many times a phase, check or
+   endpoint runs this run. `target` is an int or the string 'indefinite' (1 =
+   once); `runs_completed` is how many runs have already looped. `hidden` supplies
+   the form's hidden fields (phase_id / return_to / …). #}
+{% macro runs_control(action, target, runs_completed=0, hidden={}, noun='item') -%}
+{% set is_indef = (target == 'indefinite') %}
+{% set num = '∞' if is_indef else target %}
+{% set active = is_indef or (target != 1) %}
+<span class="runs-control" onclick="event.stopPropagation()">
+  <button type="button" class="ctx-icon-svg runs-toggle{% if active %} runs-active{% endif %}" aria-label="Run count" aria-expanded="false" data-empty="{{ 'false' if active else 'true' }}" data-tooltip="Runs {{ num }}× ({{ 'once' if not active else num ~ ' times' }}){% if runs_completed %} — {{ runs_completed }} done so far{% endif %}. Click to change how many times this {{ noun }} runs (a number, or ∞ / 'indefinite'). 1 = once.">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+    <span class="runs-badge">&times;{{ num }}</span>
+  </button>
+  <form method="post" action="{{ action }}" class="runs-editor" hidden>
+    {% for k, v in hidden.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <input type="text" name="runs" value="{{ num }}" class="runs-input" aria-label="Number of runs" size="4" autocomplete="off" title="Number of runs, or ∞ / 'indefinite'. 1 = once.">
+    <button class="btn small primary" type="submit">Set</button>
+  </form>
+</span>
 {%- endmacro %}
 
 {% macro section_icon(s) -%}

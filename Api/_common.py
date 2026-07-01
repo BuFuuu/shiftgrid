@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 
 from Domain import (
     NotesOldStringNotFound,
@@ -11,22 +11,7 @@ from Domain import (
 from .schemas import NextAction
 
 
-def _update_notes_hint(project) -> NextAction:
-    if project.notes_required:
-        return NextAction(
-            action="edit_notes",
-            method="PATCH",
-            path="/api/v1/notes",
-            why=(
-                "This project has notes_required=true. Notes were updated inline with this "
-                "action (via notes_old_string/notes_new_string in the body) and the next "
-                "finish/advance/unfocus/check-done call MUST do the same — same Edit-tool "
-                "semantics as this endpoint. PATCH /api/v1/notes is still available between "
-                "those actions if you need to record free-form context. Read GET /api/v1/notes "
-                "first so your old_string matches verbatim. <immutable>…</immutable> is read-only."
-            ),
-            example_body={"old_string": "## Findings\n", "new_string": "## Findings\n- SQLi at /login (finding: ab12cd34)\n"},
-        )
+def _optional_notes_hint() -> NextAction:
     return NextAction(
         action="edit_notes",
         method="PATCH",
@@ -40,6 +25,26 @@ def _update_notes_hint(project) -> NextAction:
         ),
         example_body={"old_string": "## Findings\n", "new_string": "## Findings\n- SQLi at /login (finding: ab12cd34)\n"},
     )
+
+
+def _update_notes_hint(project) -> NextAction:
+    if project.notes_required:
+        return NextAction(
+            action="edit_notes",
+            method="PATCH",
+            path="/api/v1/notes",
+            why=(
+                "This project has notes_required=true. Notes were updated inline with this "
+                "action (via notes_old_string/notes_new_string in the body) and the next "
+                "finish/unfocus/check-done call MUST do the same — same Edit-tool "
+                "semantics as this endpoint. (Phase advance is exempt: it never requires a "
+                "notes diff.) PATCH /api/v1/notes is still available between "
+                "those actions if you need to record free-form context. Read GET /api/v1/notes "
+                "first so your old_string matches verbatim. <immutable>…</immutable> is read-only."
+            ),
+            example_body={"old_string": "## Findings\n", "new_string": "## Findings\n- SQLi at /login (finding: ab12cd34)\n"},
+        )
+    return _optional_notes_hint()
 
 
 _NOTES_REQUIRED_EXAMPLE = {
@@ -92,7 +97,7 @@ def _guard_observation_overwrite(current, new, base, *, field: str, read_path: s
 
 def _enforce_notes_update(project, notes_old_string, notes_new_string) -> None:
     """When `project.notes_required` is True, apply an Edit-tool-style notes
-    update in-line with a finish/done/advance action. No-op when the flag is
+    update in-line with a finish/done action. No-op when the flag is
     off. Raises HTTPException(409) when the fields are missing or unchanged,
     HTTPException(400) on edit validation failures (same shape as PATCH /notes)."""
     if not project.notes_required:
@@ -103,7 +108,7 @@ def _enforce_notes_update(project, notes_old_string, notes_new_string) -> None:
             detail={
                 "error": "notes_required",
                 "message": (
-                    "this project enforces note-taking on finish/done/advance actions. "
+                    "this project enforces note-taking on finish/done actions. "
                     "Re-call this endpoint with `notes_old_string` and `notes_new_string` "
                     "in the body — Edit-tool semantics, same as PATCH /api/v1/notes. "
                     "Read GET /api/v1/notes first so you know the current contents, then "
@@ -304,11 +309,8 @@ def next_step_to_action(next_step, project, workflow) -> NextAction:
     if next_step.kind == "advance_phase":
         return NextAction(
             action="advance_phase", method="POST", path="/api/v1/workflow/advance",
-            why=(
-                "all work in this phase is complete"
-                + ("; project requires inline notes diff (notes_old_string + notes_new_string)" if project.notes_required else "")
-            ),
-            example_body=({"skip_optional": False, **_NOTES_REQUIRED_EXAMPLE} if project.notes_required else {"skip_optional": False}),
+            why="all work in this phase is complete (advancing never requires a notes diff)",
+            example_body={"skip_optional": False},
         )
     return NextAction(
         action="workflow_complete", method="GET", path="/api/v1/workflow/state",
@@ -408,3 +410,26 @@ def _reject_unless_attested(agent_composed: bool, really_raw: bool) -> None:
                 "message": _raw_capture_rejection_message(agent_composed, really_raw),
             },
         )
+
+
+def _read_raw_capture_upload(
+    file: UploadFile, agent_composed: bool, really_raw: bool
+) -> tuple[str, bytes, str]:
+    """Shared reader for the multipart raw-capture endpoints: enforce the
+    anti-AI-script attestation, then read the uploaded file's bytes verbatim.
+
+    Returns ``(filename, data, mime_type)``. No base64 anywhere — the client
+    posts the file bytes directly as the ``file`` part of a multipart/form-data
+    request, so newlines and binary content need no escaping or encoding.
+
+    Raises a 400 HTTPException on a failed attestation or an empty upload."""
+    _reject_unless_attested(agent_composed, really_raw)
+    data = file.file.read()
+    if not data:
+        raise HTTPException(
+            status_code=400,
+            detail="uploaded file is empty — send the capture bytes as the `file` part",
+        )
+    name = (file.filename or "").strip() or "capture"
+    mime = file.content_type or "application/octet-stream"
+    return name, data, mime

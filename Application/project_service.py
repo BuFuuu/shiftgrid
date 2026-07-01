@@ -213,6 +213,7 @@ class ProjectService:
                 "category_name": item.get("category_name", "Uncategorized"),
                 "scope": item.get("scope", "global"),
                 "repeatable": item.get("repeatable", False),
+                "runs": item.get("runs", 1),
                 "produces_endpoints": item.get("produces_endpoints", False),
                 "description": item.get("description", ""),
                 "examples": item.get("examples", ""),

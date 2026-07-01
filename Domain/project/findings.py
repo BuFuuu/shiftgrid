@@ -33,7 +33,7 @@ class FindingsMixin:
         self,
         finding_id: str,
         name: str,
-        data_b64: str,
+        data: bytes,
         mime_type: str = "application/octet-stream",
         source_type: str = "other",
         description: str = "",
@@ -42,7 +42,7 @@ class FindingsMixin:
         if f is None:
             raise ValueError(f"unknown finding {finding_id}")
         rel_dir = Path(FINDINGS_DIR) / finding_id
-        entry = self._write_evidence(rel_dir, name, data_b64, mime_type, source_type, description)
+        entry = self._write_evidence(rel_dir, name, data, mime_type, source_type, description)
         f.setdefault("evidence", []).append(entry)
         f["updated_at"] = _now()
         return entry

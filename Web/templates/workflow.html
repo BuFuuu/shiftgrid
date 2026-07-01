@@ -26,7 +26,6 @@
       <span class="agent-advance-switch-track" aria-hidden="true"><span class="agent-advance-switch-knob"></span></span>
     </button>
   </form>
-  {{ try_harder_switch(url_for('web.workflow'), project.try_harder) }}
 </div>
 {% if next_action %}
 <script>
@@ -71,6 +70,7 @@
             {% if phase.free %}<span class="pill">free</span>{% endif %}
             {% if phase_view.disabled %}<span class="pill" data-tooltip="Every step in this phase is disabled — the workflow skips straight over it">skipped</span>{% endif %}
             {% if phase.human_advance %}<span class="ctx-icon-svg human-advance-icon" data-tooltip="Can only be advanced by the human operator" aria-label="Can only be advanced by the human operator"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg></span>{% endif %}
+            {{ runs_control(url_for('web.set_workflow_phase_runs'), phase_view.get('runs', 1), phase_view.get('runs_completed', 0), {'phase_id': phase.id}, 'phase') }}
             {% if phase_modify_mode %}<span class="pill modify-mode-pill">re-opened</span>{% endif %}
             {% if idx < current_idx or ((workflow_terminal or phase_modify_mode) and idx == current_idx) %}
               <form method="post" action="{{ url_for('web.toggle_workflow_phase_modify_mode') }}" class="inline-form phase-modify-form">

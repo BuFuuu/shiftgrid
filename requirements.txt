@@ -1,5 +1,6 @@
 Flask~=3.0.3
 fastapi~=0.115.6
+python-multipart~=0.0.20
 uvicorn~=0.32.1
 a2wsgi~=1.10.7
 tzdata~=2024.2

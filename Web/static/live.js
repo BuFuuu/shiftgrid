@@ -183,4 +183,27 @@
   } else {
     installRichTooltips();
   }
+
+  // ---- inline runs editors ----
+  // A .runs-toggle reveals its sibling .runs-editor (a tiny form to change how
+  // many times a phase / check / endpoint runs). Delegated so it works on every
+  // page. Capture phase so it fires even when the control sits inside a <summary>
+  // (the endpoint card top bar), whose click handler calls stopPropagation to
+  // keep the card from toggling. aria-expanded marks it open, so the live-reload
+  // poll (hasOpenPanel) won't yank the editor closed while the operator edits.
+  document.addEventListener('click', function (e) {
+    var toggle = e.target && e.target.closest && e.target.closest('.runs-toggle');
+    if (!toggle) return;
+    var control = toggle.closest('.runs-control');
+    if (!control) return;
+    var editor = control.querySelector('.runs-editor');
+    if (!editor) return;
+    var open = !editor.hidden;
+    editor.hidden = open;
+    toggle.setAttribute('aria-expanded', String(!open));
+    if (!open) {
+      var input = editor.querySelector('.runs-input');
+      if (input) { input.focus(); input.select(); }
+    }
+  }, true);
 })();

@@ -70,7 +70,7 @@ class WorkflowMixin:
                 blocking = counts["todo"] + counts["focused"]
                 if blocking:
                     return test_endpoints(blocking)
-            return NextStep("do_step", pid, f"Finish step: {nxt['title']}", target=nxt["step_id"])
+            return NextStep("do_step", pid, f"{self._phase_run_tag(workflow, pid)}Finish step: {nxt['title']}", target=nxt["step_id"])
 
         nxt_phase = self._next_active_phase(workflow, pid)
         if nxt_phase is None:
@@ -324,6 +324,7 @@ class WorkflowMixin:
         return unfinished
 
     def advance_phase(self, workflow: Workflow, skip_optional: bool = False, phase_id: str | None = None) -> str | None:
+        self.run_notice = None
         # A phase_id that names a different phase, or the current phase while it
         # is re-opened, means "close that phase's modify mode" — never advance.
         if phase_id is not None and (phase_id != self.current_phase or self.is_phase_in_modify_mode(phase_id)):
@@ -337,6 +338,10 @@ class WorkflowMixin:
                 f"cannot advance: {ns.label}",
                 unfinished=self.unfinished_steps_in_current_phase(workflow),
             )
+        # Phase runs: when the phase is configured to run again, reset its steps
+        # and loop back to the first one instead of advancing (run_notice set).
+        if self._loop_phase_if_more_runs(workflow):
+            return self.current_phase
         nxt = self._next_active_phase(workflow, self.current_phase, skip_optional=skip_optional)
         if nxt is None:
             return None
@@ -344,6 +349,80 @@ class WorkflowMixin:
         entry = self.workflow_phases.setdefault(nxt["id"], {})
         entry.setdefault("advanced_at", _now())
         return nxt["id"]
+
+    def phase_runs(self, workflow: Workflow, phase_id: str) -> "int | str":
+        """Effective run count for a phase (total times it runs): the operator's
+        per-run override in workflow_phases[phase_id]['runs'] if set, else the
+        workflow file's phase['runs'] default. Normalized to a positive int or
+        'indefinite'; 1 means run once (no looping)."""
+        override = (self.workflow_phases.get(phase_id) or {}).get("runs")
+        if override is not None:
+            return _normalize_runs(override)
+        src = workflow.phase(phase_id) or {}
+        return _normalize_runs(src.get("runs"))
+
+    def phase_runs_completed(self, phase_id: str) -> int:
+        return int((self.workflow_phases.get(phase_id) or {}).get("runs_completed", 0) or 0)
+
+    def _phase_run_tag(self, workflow: Workflow, phase_id: str) -> str:
+        """Short '(run N/M) ' marker for a multi-run phase, '' for a single-run
+        one. Prefixed to the next-step hint so a phase that reset its steps for
+        another run reads as a rerun, not an unexplained pile of pending steps."""
+        target = self.phase_runs(workflow, phase_id)
+        if target == 1:
+            return ""
+        m = "∞" if target == "indefinite" else target
+        return f"(run {self.phase_runs_completed(phase_id) + 1}/{m}) "
+
+    def set_phase_runs(self, workflow: Workflow, phase_id: str, value) -> dict:
+        """Operator per-run override for how many times a phase runs. Stored in
+        project.json (workflow_phases map); never touches the workflow file."""
+        if workflow.phase(phase_id) is None:
+            raise ValueError(f"unknown workflow phase {phase_id}")
+        entry = self.workflow_phases.setdefault(phase_id, {})
+        entry["runs"] = _normalize_runs(value)
+        entry["ts"] = _now()
+        return dict(entry)
+
+    def _loop_phase_if_more_runs(self, workflow: Workflow) -> bool:
+        """When the current (clear-to-advance) phase still has runs left, reset its
+        steps to pending — keeping observations — bump its run counter, set
+        run_notice, and return True to signal 'looped, do not advance'. Returns
+        False when the phase should advance normally."""
+        pid = self.current_phase
+        target = self.phase_runs(workflow, pid)
+        completed = self.phase_runs_completed(pid)
+        if not _runs_should_loop(target, completed):
+            return False
+        self._reset_phase_steps_for_rerun(workflow, pid)
+        entry = self.workflow_phases.setdefault(pid, {})
+        entry["runs_completed"] = completed + 1
+        entry["ts"] = _now()
+        phase = workflow.phase(pid) or {}
+        self.run_notice = _runs_message(
+            "phase", f"Phase '{phase.get('name', pid)}'", completed + 2, target
+        )
+        return True
+
+    def _reset_phase_steps_for_rerun(self, workflow: Workflow, phase_id: str) -> None:
+        """Send every (non-disabled) step in a phase back to pending for another
+        run: clear finished + focus/attribution, keep observations, description,
+        examples and evidence so the next run builds on prior knowledge."""
+        phase = workflow.phase(phase_id)
+        if phase is None:
+            return
+        for step in phase.get("steps", []):
+            step_id = self._workflow_step_id(step)
+            if not step_id:
+                continue
+            state = self.workflow_steps.get(self._step_key(phase_id, step_id))
+            if state is None or state.get("disabled"):
+                continue
+            state["status"] = "pending"
+            state["finished"] = False
+            state.pop("focused_by", None)
+            state.pop("done_by", None)
+            state["ts"] = _now()
 
     def _phase_kind_blockers(self, workflow: Workflow, phase_id: str) -> list[str]:
         """Cross-cutting completion gates for a phase beyond its own steps: a
@@ -523,16 +602,6 @@ class WorkflowMixin:
                 ]
         return []
 
-    def try_harder_nudge_step(self, phase_id: str, step_id: str) -> bool:
-        """Try-harder gate for finishing a workflow step. Checked by the finish
-        handlers *before* the notes gate (so the first finish doesn't consume a
-        notes edit while leaving the step unfinished). See try_harder_nudge."""
-        key = self._step_key(phase_id, step_id)
-        state = self.workflow_steps.setdefault(
-            key, {"status": "pending", "observations": "", "ts": None}
-        )
-        return self.try_harder_nudge(state)
-
     def mark_step_finished(self, phase_id: str, step_id: str, agent: dict | None = None) -> dict:
         """Flip the `finished` flag on a workflow step. POST /workflow/.../finish
         is the only call (besides the Web UI Finish button) that does this — PUT
@@ -545,7 +614,6 @@ class WorkflowMixin:
             key, {"status": "pending", "observations": "", "ts": None}
         )
         state["finished"] = True
-        state.pop("try_harder_nudged", None)
         state.pop("focused_by", None)
         if agent is not None:
             state["done_by"] = agent
@@ -613,6 +681,9 @@ class WorkflowMixin:
             "modify_mode": bool(override.get("modify_mode")),
             "is_done": is_done,
             "disabled": not self.phase_has_enabled_steps(workflow, phase_id),
+            "runs": self.phase_runs(workflow, phase_id),
+            "runs_default": _normalize_runs(phase.get("runs")),
+            "runs_completed": self.phase_runs_completed(phase_id),
         }
 
     def update_phase_context(self, phase_id: str, description: str | None = None) -> dict:
@@ -628,7 +699,7 @@ class WorkflowMixin:
         phase_id: str,
         step_id: str,
         name: str,
-        data_b64: str,
+        data: bytes,
         mime_type: str = "application/octet-stream",
         source_type: str = "other",
         description: str = "",
@@ -638,15 +709,21 @@ class WorkflowMixin:
                 f"step {step_id} is disabled in this project by the human operator — "
                 "do not work on it. Move on to the next step in the workflow."
             )
-        # Focus gate: raw captures are a result write — the step must be focused.
-        if self.get_step_state(phase_id, step_id).get("status") != "focused":
+        # Focus gate: raw captures are a result write, so the step must have been
+        # claimed. Allow 'done'/'skipped' too — the documented flow marks the step
+        # complete and then attaches captures — but still block unclaimed 'pending'.
+        if self.get_step_state(phase_id, step_id).get("status") not in (
+            "focused",
+            "done",
+            "skipped",
+        ):
             raise self._step_focus_required(phase_id, step_id, "attach raw captures to it")
         key = self._step_key(phase_id, step_id)
         state = self.workflow_steps.setdefault(
             key, {"status": "pending", "observations": "", "ts": None}
         )
         rel_dir = Path(WORKFLOW_DIR) / key.replace("/", "__")
-        entry = self._write_evidence(rel_dir, name, data_b64, mime_type, source_type, description)
+        entry = self._write_evidence(rel_dir, name, data, mime_type, source_type, description)
         state.setdefault("evidence", []).append(entry)
         state["ts"] = _now()
         return entry

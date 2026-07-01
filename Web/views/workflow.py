@@ -1,8 +1,6 @@
-import base64
-
 from flask import render_template, request, redirect, url_for, flash, send_file
 
-from Domain import PhaseIncompleteError, WorkflowOrderError, StepDisabledError, ObservationsTooLongError, FocusRequiredError, TryHarderError, TRY_HARDER_MESSAGE
+from Domain import PhaseIncompleteError, WorkflowOrderError, StepDisabledError, ObservationsTooLongError, FocusRequiredError
 
 from ..routes import web_bp, service, require_loaded, _common_ctx, OPERATOR_AGENT
 
@@ -102,11 +100,6 @@ def finish_workflow_step():
     missing.extend(project.step_finish_blockers(phase_id, step_id))
     if missing:
         flash(f"Cannot finish step: {'; '.join(missing)}")
-        return redirect(url_for("web.workflow"))
-    # Try-harder gate: the first finish is held back with a nudge.
-    if project.try_harder_nudge_step(phase_id, step_id):
-        s.save(project)
-        flash(TRY_HARDER_MESSAGE)
         return redirect(url_for("web.workflow"))
     try:
         project.mark_step_finished(phase_id, step_id, agent=OPERATOR_AGENT)
@@ -219,22 +212,34 @@ def toggle_agent_advance():
 @web_bp.post("/project/try-harder")
 @require_loaded
 def toggle_try_harder():
-    """Operator-only: toggle try-harder mode for the whole project. When on, the
-    first finish of any step, check, or endpoint is held back with a nudge and
-    only the second finish completes it. The button lives on the workflow,
-    checklist and endpoints pages; `return_to` brings the operator back."""
+    """Operator-only: the 'Try harder' switch, scoped by page. `scope=checks`
+    (checklist page) adds/removes one run on every global check; `scope=endpoints`
+    (endpoints page) adds/removes one run on every endpoint. Turning it on is +1,
+    off is -1 (floored at 1). `return_to` brings the operator back."""
     s = service()
     project = s.current
+    scope = request.form.get("scope", "").strip()
+    return_to = request.form.get("return_to") or url_for("web.workflow")
+    if scope == "checks":
+        current = project.try_harder_checks
+    elif scope == "endpoints":
+        current = project.try_harder_endpoints
+    else:
+        flash(f"unknown try-harder scope {scope!r}")
+        return redirect(return_to)
     raw = request.form.get("enabled", "").strip().lower()
     if raw in ("1", "true", "on", "yes"):
         enabled = True
     elif raw in ("0", "false", "off", "no"):
         enabled = False
     else:
-        enabled = not project.try_harder
-    project.set_try_harder(enabled)
+        enabled = not current
+    if scope == "checks":
+        project.set_try_harder_checks(enabled)
+    else:
+        project.set_try_harder_endpoints(enabled)
     s.save(project)
-    return redirect(request.form.get("return_to") or url_for("web.workflow"))
+    return redirect(return_to)
 
 
 @web_bp.post("/project/advance")
@@ -250,7 +255,32 @@ def advance():
         flash(str(e))
         return redirect(request.form.get("return_to") or url_for("web.workflow"))
     s.save(project)
+    # Phase runs: instead of advancing, the phase reset for another run — surface
+    # the nudge so the operator sees why the phase didn't move on.
+    if project.run_notice:
+        flash(project.run_notice)
     return redirect(request.form.get("return_to") or url_for("web.workflow"))
+
+
+@web_bp.post("/project/workflow/phase/runs")
+@require_loaded
+def set_workflow_phase_runs():
+    """Operator-only: set how many times a phase runs for this run. Accepts a
+    number, or 'indefinite' / '∞' for an unbounded loop (stop it by lowering the
+    number later)."""
+    s = service()
+    project = s.current
+    phase_id = request.form.get("phase_id", "").strip()
+    if not phase_id:
+        flash("phase_id required")
+        return redirect(url_for("web.workflow"))
+    try:
+        project.set_phase_runs(s.workflow_for(project), phase_id, request.form.get("runs"))
+    except (ValueError, WorkflowOrderError) as e:
+        flash(str(e))
+        return redirect(url_for("web.workflow"))
+    s.save(project)
+    return redirect(url_for("web.workflow"))
 
 
 @web_bp.post("/project/workflow/<phase_id>/<step_id>/evidence")
@@ -262,13 +292,12 @@ def add_step_evidence(phase_id, step_id):
     if uploaded is None or not uploaded.filename:
         flash("no file selected")
         return redirect(url_for("web.workflow"))
-    data_b64 = base64.b64encode(uploaded.read()).decode("ascii")
     try:
         project.add_workflow_step_evidence(
             phase_id,
             step_id,
             uploaded.filename,
-            data_b64,
+            uploaded.read(),
             mime_type=uploaded.mimetype or "application/octet-stream",
             source_type=request.form.get("source_type") or "other",
             description=(request.form.get("description") or "").strip(),

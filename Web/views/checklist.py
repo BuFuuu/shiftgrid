@@ -1,8 +1,6 @@
-import base64
-
 from flask import render_template, request, redirect, url_for, flash, send_file
 
-from Domain import ObservationsTooLongError, FocusRequiredError, TryHarderError
+from Domain import ObservationsTooLongError, FocusRequiredError, RunAgainError
 
 from ..routes import web_bp, service, require_loaded, _common_ctx, OPERATOR_AGENT
 
@@ -82,12 +80,29 @@ def finish_check(check_id):
     return_to = request.form.get("return_to", "checklist")
     try:
         project.finish_global_check(check_id, agent=OPERATOR_AGENT)
-    except TryHarderError as e:
-        # Try-harder gate: the first finish is held back with a nudge. Persist the
-        # flag so the second finish completes it.
+    except RunAgainError as e:
+        # Runs gate: this finish reset the check for another run. Persist the reset
+        # and surface the nudge.
         s.save(project)
         flash(str(e))
         return redirect(url_for(f"web.{return_to}"))
+    except ValueError as e:
+        flash(str(e))
+        return redirect(url_for(f"web.{return_to}"))
+    s.save(project)
+    return redirect(url_for(f"web.{return_to}"))
+
+
+@web_bp.post("/project/checks/<check_id>/runs")
+@require_loaded
+def set_check_runs(check_id):
+    """Operator-only: set how many times this check runs before it settles.
+    Accepts a number, or 'indefinite' / '∞' for an unbounded loop."""
+    s = service()
+    project = s.current
+    return_to = request.form.get("return_to", "checklist")
+    try:
+        project.set_check_runs(check_id, request.form.get("runs"))
     except ValueError as e:
         flash(str(e))
         return redirect(url_for(f"web.{return_to}"))
@@ -106,12 +121,11 @@ def add_check_evidence(check_id):
     if uploaded is None or not uploaded.filename:
         flash("no file selected")
         return redirect(url_for(f"web.{return_to}"))
-    data_b64 = base64.b64encode(uploaded.read()).decode("ascii")
     try:
         project.add_check_evidence(
             check_id,
             uploaded.filename,
-            data_b64,
+            uploaded.read(),
             mime_type=uploaded.mimetype or "application/octet-stream",
             endpoint_id=endpoint_id,
             source_type=request.form.get("source_type") or "other",

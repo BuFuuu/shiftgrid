@@ -1,20 +1,22 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from Application import ProjectService
 
 from ..deps import require_loaded
 from ..schemas import (
-    AddFindingRawCaptureRequest,
+    EvidenceSourceType,
+    _AGENT_COMPOSED_DESC,
+    _REALLY_RAW_CAPTURE_DESC,
     CreateFindingRequest,
     DeleteResponse,
     RawCaptureMeta,
     Finding,
     UpdateFindingRequest,
 )
-from .._common import _reject_unless_attested
+from .._common import _read_raw_capture_upload
 
 router = APIRouter()
 
@@ -71,22 +73,44 @@ def delete_finding(finding_id: str, service: ProjectService = Depends(require_lo
 )
 def add_finding_raw_capture(
     finding_id: str,
-    body: AddFindingRawCaptureRequest,
+    file: UploadFile = File(
+        ...,
+        description="The raw capture file, sent as multipart/form-data. Post the bytes "
+        "directly — do NOT base64-encode and do NOT wrap in JSON. E.g. curl -F 'file=@shot.png'.",
+    ),
+    source_type: EvidenceSourceType = Form(
+        ...,
+        description="Origin of the bytes: tool_output, screenshot, log, raw_response, "
+        "config, file_content, or other. Self-written summaries go in the finding, not here.",
+    ),
+    description: str = Form(
+        ...,
+        min_length=1,
+        description="What this capture shows and why it matters as evidence. Shown next to the file.",
+    ),
+    this_really_is_raw_capture_and_not_an_ai_script: bool = Form(
+        False, description=_REALLY_RAW_CAPTURE_DESC
+    ),
+    agent_composed: bool = Form(True, description=_AGENT_COMPOSED_DESC),
+    name: str | None = Form(
+        None, description="Optional override for the stored filename; defaults to the uploaded file's name."
+    ),
     service: ProjectService = Depends(require_loaded),
 ):
-    _reject_unless_attested(
-        body.agent_composed,
-        body.this_really_is_raw_capture_and_not_an_ai_script,
+    """Attach raw 3rd-party output to a finding. Upload the file as multipart/form-data —
+    the bytes are stored verbatim, no base64."""
+    fname, data, mime = _read_raw_capture_upload(
+        file, agent_composed, this_really_is_raw_capture_and_not_an_ai_script
     )
     p = service.current
     try:
         entry = p.add_finding_evidence(
             finding_id,
-            body.name,
-            body.data,
-            mime_type=body.mime_type,
-            source_type=body.source_type,
-            description=body.description,
+            name or fname,
+            data,
+            mime_type=mime,
+            source_type=source_type,
+            description=description,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

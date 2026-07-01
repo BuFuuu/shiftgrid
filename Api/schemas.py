@@ -82,6 +82,10 @@ class Endpoint(BaseModel):
     checks: list[str] = Field(default_factory=list)
     feature_group: str = ""
     checks_adjusted: bool = False
+    # How many times this endpoint must be tested before it settles (int or
+    # "indefinite"; 1 = once), and how many runs have looped so far.
+    runs: int | str = 1
+    runs_completed: int = 0
     focused_by: AgentTag | None = None
     done_by: AgentTag | None = None
 
@@ -135,6 +139,8 @@ class ChecklistItemResult(BaseModel):
     ts: int | None = None
     focused_by: AgentTag | None = None
     done_by: AgentTag | None = None
+    # How many times this check has looped (reset for another run) so far.
+    runs_completed: int = 0
 
 
 class ChecklistItem(BaseModel):
@@ -145,6 +151,9 @@ class ChecklistItem(BaseModel):
     category_name: str = "Uncategorized"
     scope: str
     repeatable: bool = False
+    # How many times a global check must be worked before it settles (int or
+    # "indefinite"; 1 = once). Distinct from `repeatable` (a free-form flag).
+    runs: int | str = 1
     produces_endpoints: bool = False
     results: dict[str, ChecklistItemResult] = Field(default_factory=dict)
 
@@ -217,6 +226,19 @@ class PhaseView(BaseModel):
     free: bool = False
     modify_mode: bool = False
     is_done: bool = False
+    # How many times this phase runs before advancing (int or "indefinite"; 1 =
+    # once), the workflow-file default, and how many runs have looped so far.
+    runs: int | str = 1
+    runs_default: int | str = 1
+    runs_completed: int = 0
+
+
+class ReopenedPhasesResponse(BaseModel):
+    """Phases the operator has re-opened for editing (modify mode). Each entry is
+    a full PhaseView so callers can see what was re-opened and its run/done state.
+    Empty list when no phase is re-opened."""
+    workflow_id: str
+    phases: list[PhaseView]
 
 
 class UpdatePhaseContextRequest(BaseModel):
@@ -442,9 +464,10 @@ class SetEndpointFeatureGroupRequest(BaseModel):
 
 
 class NotesEditFields(BaseModel):
-    """Optional Edit-tool-style notes update piggy-backed on finish/done/advance
+    """Optional Edit-tool-style notes update piggy-backed on finish/done
     actions. When the project has `notes_required=True`, both fields become
     mandatory on the gated endpoints and the API rejects the action otherwise.
+    Phase advance is not a gated endpoint — advancing never requires a notes diff.
     Semantics match PATCH /api/v1/notes: `notes_old_string` must match the
     current notes verbatim and uniquely; the <immutable>…</immutable> header
     is read-only."""
@@ -495,45 +518,10 @@ _REALLY_RAW_CAPTURE_DESC = (
 )
 
 
-class AddRawCaptureRequest(BaseModel):
-    source_type: EvidenceSourceType = Field(
-        description="Origin of the bytes. Tool output is raw 3rd-party output (tool stdout, "
-        "screenshots, logs, HTTP responses, target files). Self-written summaries go in `observations`, "
-        "not here. Use `other` only when none of the specific types fit."
-    )
-    agent_composed: bool = Field(default=True, description=_AGENT_COMPOSED_DESC)
-    this_really_is_raw_capture_and_not_an_ai_script: bool = Field(
-        default=False, description=_REALLY_RAW_CAPTURE_DESC
-    )
-    name: str = Field(min_length=1)
-    mime_type: str = "application/octet-stream"
-    data: str = Field(min_length=1, description="base64-encoded payload")
-    description: str = Field(
-        min_length=1,
-        description="What this capture shows and why it matters as evidence — e.g. "
-        "'sqlmap output confirming boolean-based SQLi on the id parameter'. Shown "
-        "next to the file in the UI.",
-    )
-    endpoint_id: str | None = None
-
-
-class AddFindingRawCaptureRequest(BaseModel):
-    source_type: EvidenceSourceType = Field(
-        description="Origin of the bytes. See AddRawCaptureRequest.source_type."
-    )
-    agent_composed: bool = Field(default=True, description=_AGENT_COMPOSED_DESC)
-    this_really_is_raw_capture_and_not_an_ai_script: bool = Field(
-        default=False, description=_REALLY_RAW_CAPTURE_DESC
-    )
-    name: str = Field(min_length=1)
-    mime_type: str = "application/octet-stream"
-    data: str = Field(min_length=1, description="base64-encoded payload")
-    description: str = Field(
-        min_length=1,
-        description="What this capture shows and why it matters as evidence — e.g. "
-        "'screenshot of the admin panel reached without authentication'. Shown "
-        "next to the file in the UI.",
-    )
+# Raw-capture uploads are multipart/form-data (see the /raw-captures routes), not
+# JSON bodies — the file bytes are posted directly, so there is no request schema
+# here. The attestation field descriptions live in _AGENT_COMPOSED_DESC and
+# _REALLY_RAW_CAPTURE_DESC above and are reused as Form() field descriptions.
 
 
 class BulkStepUpdateRequest(BaseModel):
@@ -541,10 +529,9 @@ class BulkStepUpdateRequest(BaseModel):
     observations: str | None = None
     base_observations: str | None = Field(default=None, description=BASE_OBSERVATIONS_DESC)
     endpoint_id: str | None = None
-    raw_captures: AddRawCaptureRequest | None = None
 
 
-class AdvancePhaseRequest(NotesEditFields):
+class AdvancePhaseRequest(BaseModel):
     skip_optional: bool = False
     phase_id: str | None = Field(
         default=None,
@@ -606,6 +593,10 @@ class AdvancePhaseResponse(BaseModel):
     current_phase: str
     advanced: bool
     update_notes: NextAction
+    # When the phase was configured to run again, `advanced` is False and the
+    # phase's steps were reset for another run; `run_notice` carries the nudge.
+    looped: bool = False
+    run_notice: str | None = None
 
 
 class DeleteResponse(BaseModel):

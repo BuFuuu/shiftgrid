@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from Application import ProjectService
@@ -8,13 +8,13 @@ from Domain import (
     PhaseIncompleteError,
     WorkflowOrderError,
     StepDisabledError,
-    TryHarderError,
-    TRY_HARDER_MESSAGE,
 )
 
 from ..deps import require_loaded, require_agent, Agent
 from ..schemas import (
-    AddRawCaptureRequest,
+    EvidenceSourceType,
+    _AGENT_COMPOSED_DESC,
+    _REALLY_RAW_CAPTURE_DESC,
     AdvancePhaseRequest,
     AdvancePhaseResponse,
     EndpointWorkflowStatusResponse,
@@ -27,6 +27,7 @@ from ..schemas import (
     WorkflowDefinition,
     WorkflowCurrentPhaseResponse,
     WorkflowPhasesResponse,
+    ReopenedPhasesResponse,
     PhaseStepsResponse,
     PhaseView,
     UpdatePhaseContextRequest,
@@ -42,9 +43,10 @@ from .._common import (
     _step_id,
     _finish_gating,
     _update_notes_hint,
+    _optional_notes_hint,
     _enforce_notes_update,
     _guard_observation_overwrite,
-    _reject_unless_attested,
+    _read_raw_capture_upload,
     next_step_to_action,
 )
 
@@ -172,6 +174,22 @@ def list_workflow_phases(service: ProjectService = Depends(require_loaded)):
     return WorkflowPhasesResponse(workflow_id=wf.id, phases=phases)
 
 
+@router.get("/workflow/phases/reopened", response_model=ReopenedPhasesResponse)
+def list_reopened_phases(service: ProjectService = Depends(require_loaded)):
+    """All phases the operator has re-opened for editing (modify mode), top-to-bottom.
+    Each entry is a full PhaseView. Empty list when nothing is re-opened. Note:
+    GET /workflow/phases lists every phase but omits the modify_mode flag, so this
+    is the endpoint to use to find re-opened phases."""
+    p = service.current
+    wf = service.workflow_for(p)
+    phases = [
+        PhaseView(**p.get_phase_view(wf, phase["id"]))
+        for phase in wf.phases
+        if p.is_phase_in_modify_mode(phase["id"])
+    ]
+    return ReopenedPhasesResponse(workflow_id=wf.id, phases=phases)
+
+
 @router.get("/workflow/phases/{phase_id}", response_model=PhaseView)
 def get_workflow_phase(phase_id: str, service: ProjectService = Depends(require_loaded)):
     p = service.current
@@ -262,7 +280,9 @@ def advance_workflow(
                 status_code=403,
                 detail=f"phase {current['id']} can only be advanced by a human operator via the UI",
             )
-    _enforce_notes_update(p, body.notes_old_string, body.notes_new_string)
+    # Advancing a phase never requires a notes diff, even when notes_required=true —
+    # the agent already recorded its context on the step/check/endpoint it just
+    # finished. Notes can still be updated separately via PATCH /api/v1/notes.
     before = p.current_phase
     try:
         p.advance_phase(wf, skip_optional=body.skip_optional, phase_id=body.phase_id)
@@ -276,7 +296,9 @@ def advance_workflow(
     return AdvancePhaseResponse(
         current_phase=p.current_phase,
         advanced=p.current_phase != before,
-        update_notes=_update_notes_hint(p),
+        update_notes=_optional_notes_hint(),
+        looped=bool(p.run_notice),
+        run_notice=p.run_notice,
     )
 
 
@@ -429,12 +451,6 @@ def finish_phase_step(
     # Re-calling /finish on an already-finished step is idempotent and skips
     # the notes gate — the agent already paid that cost the first time.
     if not already_finished:
-        # Try-harder gate runs before the notes gate so the first finish doesn't
-        # consume a notes edit while leaving the step unfinished. Persist the
-        # nudge flag so the second call (which goes through) is recognised.
-        if p.try_harder_nudge_step(phase_id, step_id):
-            service.save(p)
-            raise TryHarderError(TRY_HARDER_MESSAGE)
         _enforce_notes_update(p, body.notes_old_string, body.notes_new_string)
         p.mark_step_finished(phase_id, step_id, agent=agent.tag())
         service.save(p)
@@ -542,27 +558,6 @@ def _update_step_entry(project, workflow, phase: dict, step: dict, step_id: str,
     except StepDisabledError as e:
         raise HTTPException(status_code=409, detail={"error": "step_disabled", "message": str(e)})
 
-    if body.raw_captures is not None:
-        _reject_unless_attested(
-            body.raw_captures.agent_composed,
-            body.raw_captures.this_really_is_raw_capture_and_not_an_ai_script,
-        )
-        try:
-            project.add_workflow_step_evidence(
-                phase["id"],
-                step_id,
-                name=body.raw_captures.name,
-                data_b64=body.raw_captures.data,
-                mime_type=body.raw_captures.mime_type,
-                source_type=body.raw_captures.source_type,
-                description=body.raw_captures.description,
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        except StepDisabledError as e:
-            raise HTTPException(status_code=409, detail={"error": "step_disabled", "message": str(e)})
-        state = project.get_step_state(phase["id"], step_id, workflow=workflow)
-
     return StepEntry(
         step_id=step_id,
         phase_id=phase["id"],
@@ -638,19 +633,42 @@ def update_workflow_step(
     "/workflow/phases/{phase_id}/steps/{step_id}/raw-captures",
     response_model=RawCaptureMeta,
     status_code=201,
-    summary="Post Step Raw Capture  (upload only logs, screenshots, HTTP responses, 3rd party tool output. NEVER EVER upload AI/Agent generated output / summaries / bash-script outputs)",
+    summary="Post Step Raw Capture  (multipart/form-data file upload — logs, screenshots, HTTP responses, 3rd party tool output. NEVER EVER upload AI/Agent generated output / summaries / bash-script outputs)",
 )
 def post_step_raw_capture(
     phase_id: str,
     step_id: str,
-    body: AddRawCaptureRequest,
+    file: UploadFile = File(
+        ...,
+        description="The raw capture file, sent as multipart/form-data. Post the bytes "
+        "directly — do NOT base64-encode and do NOT wrap in JSON. Newlines and binary "
+        "content are handled by the upload. E.g. curl -F 'file=@nmap.txt'.",
+    ),
+    source_type: EvidenceSourceType = Form(
+        ...,
+        description="Origin of the bytes: tool_output, screenshot, log, raw_response, "
+        "config, file_content, or other. Self-written summaries go in observations, not here.",
+    ),
+    description: str = Form(
+        ...,
+        min_length=1,
+        description="What this capture shows and why it matters — e.g. 'nmap -sV output "
+        "confirming OpenSSH 7.2 on port 22'. Shown next to the file in the UI.",
+    ),
+    this_really_is_raw_capture_and_not_an_ai_script: bool = Form(
+        False, description=_REALLY_RAW_CAPTURE_DESC
+    ),
+    agent_composed: bool = Form(True, description=_AGENT_COMPOSED_DESC),
+    name: str | None = Form(
+        None, description="Optional override for the stored filename; defaults to the uploaded file's name."
+    ),
     service: ProjectService = Depends(require_loaded),
 ):
-    """Attach raw 3rd-party output (tool stdout, screenshot, log, HTTP response, target file)
-    to a step. Self-written summaries belong in `observations`, not here. `data` is base64."""
-    _reject_unless_attested(
-        body.agent_composed,
-        body.this_really_is_raw_capture_and_not_an_ai_script,
+    """Attach raw 3rd-party output (tool stdout, screenshot, log, HTTP response, target
+    file) to a step. Self-written summaries belong in `observations`, not here. Upload the
+    file as multipart/form-data — the bytes are stored verbatim, no base64."""
+    fname, data, mime = _read_raw_capture_upload(
+        file, agent_composed, this_really_is_raw_capture_and_not_an_ai_script
     )
     p = service.current
     wf = service.workflow_for(p)
@@ -659,11 +677,11 @@ def post_step_raw_capture(
         entry = p.add_workflow_step_evidence(
             phase_id,
             step_id,
-            name=body.name,
-            data_b64=body.data,
-            mime_type=body.mime_type,
-            source_type=body.source_type,
-            description=body.description,
+            name=name or fname,
+            data=data,
+            mime_type=mime,
+            source_type=source_type,
+            description=description,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

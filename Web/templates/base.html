@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block full_title %}{% block title %}Home{% endblock %} - ShiftGrid{% endblock %}</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='try-harder-2') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v='runs-1') }}">
   <script>
     (function () {
       const stored = localStorage.getItem('pg-theme');
       if (stored) document.documentElement.setAttribute('data-theme', stored);
     })();
   </script>
-  <script src="{{ url_for('static', filename='live.js', v='tooltip-bold-1') }}" defer></script>
+  <script src="{{ url_for('static', filename='live.js', v='runs-2') }}" defer></script>
 </head>
 <body>
   <div class="brand">

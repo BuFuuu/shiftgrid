@@ -128,6 +128,7 @@
                 <button type="button" class="ctx-icon-svg check-row-ctx-toggle" aria-label="Examples" data-tooltip="{{ ex or 'No examples yet -- click to add' }}" data-empty="{{ 'true' if not ex else 'false' }}" data-target="check-context-{{ item.id }}">
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 4 10.5c-.7.7-1 1.5-1 2.5H9c0-1-.3-1.8-1-2.5A6 6 0 0 1 12 3z"/></svg>
                 </button>
+                {{ runs_control(url_for('web.set_check_runs', check_id=item.id), item.get('runs', 1), r.get('runs_completed', 0), {'return_to': 'checklist'}, 'check') }}
               </span>
               <form method="post" action="{{ url_for('web.update_check', check_id=item.id) }}" class="inline-form check-status-form">
                 <input type="hidden" name="return_to" value="checklist">
@@ -294,7 +295,7 @@
 </section>
 
 <div class="floating-advance">
-  {{ try_harder_switch(url_for('web.checklist'), project.try_harder) }}
+  {{ try_harder_switch(url_for('web.checklist'), project.try_harder_checks, 'checks') }}
 </div>
 <script>
   (function () {

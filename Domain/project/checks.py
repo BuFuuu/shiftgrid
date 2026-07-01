@@ -180,7 +180,7 @@ class ChecksMixin:
         self,
         check_id: str,
         name: str,
-        data_b64: str,
+        data: bytes,
         mime_type: str = "application/octet-stream",
         endpoint_id: str | None = None,
         source_type: str = "other",
@@ -189,15 +189,18 @@ class ChecksMixin:
         item = self._get_check(check_id)
         self._require_endpoint_id_match(item, endpoint_id)
         r = self._get_or_init_result(item, endpoint_id)
-        # Focus gate: raw captures are a result write — a global check must be
-        # focused first (per-endpoint capture is gated by endpoint focus instead).
-        if item["scope"] == "global" and r.get("status") != "focused":
+        # Focus gate: raw captures are a result write, so a global check must have
+        # been claimed. Allow it once a result is recorded (or the check is
+        # finished) too — captures are commonly attached right after settling the
+        # result — but still block an unclaimed 'pending' check. (Per-endpoint
+        # capture is gated by endpoint focus instead.)
+        if item["scope"] == "global" and r.get("status", "pending") == "pending":
             raise self._check_focus_required(check_id, "attach raw captures to it")
         if item["scope"] == "per_endpoint":
             rel_dir = Path(ENDPOINTS_DIR) / (endpoint_id or "_unassigned") / check_id
         else:
             rel_dir = Path(CHECKLIST_DIR) / check_id
-        entry = self._write_evidence(rel_dir, name, data_b64, mime_type, source_type, description)
+        entry = self._write_evidence(rel_dir, name, data, mime_type, source_type, description)
         r["evidence"].append(entry)
         r["ts"] = _now()
         return entry
@@ -317,12 +320,25 @@ class ChecksMixin:
                 f"Set status (PUT /api/v1/check/{check_id}/status) and observations "
                 f"(PUT /api/v1/check/{check_id}/observations) first."
             )
-        # Try-harder gate: the first finish of a not-yet-finished check is held
-        # back with a nudge (re-finishing an already-finished check is exempt).
-        if not r.get("finished") and self.try_harder_nudge(r):
-            raise TryHarderError(TRY_HARDER_MESSAGE)
+        already_finished = bool(r.get("finished"))
+        # Runs gate: when the check is configured to run again, reset it to pending
+        # (keeping observations) and nudge for another run instead of finishing.
+        # Skipped when re-finishing an already-finished check.
+        if not already_finished:
+            target = _normalize_runs(item.get("runs"))
+            completed = int(r.get("runs_completed", 0) or 0)
+            if _runs_should_loop(target, completed):
+                r["status"] = "pending"
+                r["finished"] = False
+                r["runs_completed"] = completed + 1
+                r.pop("focused_by", None)
+                r.pop("done_by", None)
+                r["ts"] = _now()
+                raise RunAgainError(
+                    _runs_message("check", f"Check '{item.get('title', check_id)}'", completed + 2, target),
+                    runs_completed=completed + 1, target=target,
+                )
         r["finished"] = True
-        r.pop("try_harder_nudged", None)
         r.pop("focused_by", None)
         if agent is not None:
             r["done_by"] = agent
@@ -344,6 +360,34 @@ class ChecksMixin:
             rows.append((r.get("ts") or 0, item))
         rows.sort(key=lambda x: x[0], reverse=True)
         return [item for _, item in rows[:limit]]
+
+    def check_runs(self, check_id: str) -> "int | str":
+        """How many times this global check should be worked before it settles —
+        a positive int or 'indefinite' (1 = once). Edited per-project on the check."""
+        return _normalize_runs(self._get_check(check_id).get("runs"))
+
+    def check_runs_completed(self, check_id: str) -> int:
+        r = (self._get_check(check_id).get("results") or {}).get("_global") or {}
+        return int(r.get("runs_completed", 0) or 0)
+
+    def set_check_runs(self, check_id: str, value) -> dict:
+        """Operator: set how many times this check runs before it can finish."""
+        item = self._get_check(check_id)
+        item["runs"] = _normalize_runs(value)
+        return dict(item)
+
+    def set_try_harder_checks(self, enabled: bool) -> None:
+        """The checklist page's 'Try harder' switch. Turning it on adds one run
+        (+1) to every global check; turning it off removes one (floored at 1).
+        'indefinite' counts are left untouched. Scoped to checks only."""
+        enabled = bool(enabled)
+        if enabled == self.try_harder_checks:
+            return
+        delta = 1 if enabled else -1
+        for item in self.checklist:
+            if item.get("scope") == "global":
+                item["runs"] = _bump_runs(item.get("runs"), delta)
+        self.data["try_harder_checks"] = enabled
 
     def update_check_context(
         self,

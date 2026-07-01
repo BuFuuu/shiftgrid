@@ -23,6 +23,10 @@ class EndpointsMixin:
             endpoint["feature_group"] = ""
         if "checks_adjusted" not in endpoint or not isinstance(endpoint["checks_adjusted"], bool):
             endpoint["checks_adjusted"] = False
+        if isinstance(endpoint.get("runs"), bool) or not isinstance(endpoint.get("runs"), (int, str)):
+            endpoint["runs"] = 1
+        if not isinstance(endpoint.get("runs_completed"), int) or isinstance(endpoint.get("runs_completed"), bool):
+            endpoint["runs_completed"] = 0
 
     @property
     def feature_groups(self) -> list[dict]:
@@ -48,6 +52,10 @@ class EndpointsMixin:
             "checks": self._per_endpoint_check_ids(),
             "feature_group": "",
             "checks_adjusted": False,
+            # The endpoints 'Try harder' switch adds +1 run to every endpoint;
+            # keep new endpoints consistent by starting them at 2 while it is on.
+            "runs": 2 if self.try_harder_endpoints else 1,
+            "runs_completed": 0,
         }
         self.endpoints.append(ep)
         self._ensure_endpoint_results(ep["id"])
@@ -228,12 +236,27 @@ class EndpointsMixin:
                 more = f" + {len(unfinished) - 5} more" if len(unfinished) > 5 else ""
                 raise ValueError(f"endpoint {endpoint_id} still has pending checks ({titles}{more})")
         if status == "tested":
-            # Try-harder gate: the first finish is held back with a nudge. Runs
-            # after the tested guards above, so an unfinishable endpoint hits the
-            # real error first, not the nudge.
-            if self.try_harder_nudge(endpoint):
-                raise TryHarderError(TRY_HARDER_MESSAGE)
-            endpoint.pop("try_harder_nudged", None)
+            # Runs gate: when the endpoint is configured to be tested again, reset
+            # it to todo for another run — per-endpoint checks back to pending,
+            # checks re-adjusted, observations kept — instead of tested. Runs after
+            # the tested guards above, so an unfinishable endpoint errors first.
+            rtarget = _normalize_runs(endpoint.get("runs"))
+            rcompleted = int(endpoint.get("runs_completed", 0) or 0)
+            if _runs_should_loop(rtarget, rcompleted):
+                endpoint["runs_completed"] = rcompleted + 1
+                endpoint.pop("focused_by", None)
+                endpoint.pop("done_by", None)
+                self._reset_endpoint_checks_for_rerun(endpoint)
+                endpoint["checks_adjusted"] = False
+                self._set_endpoint_status(endpoint, "todo")
+                raise RunAgainError(
+                    _runs_message(
+                        "endpoint",
+                        f"Endpoint '{endpoint.get('name', endpoint_id)}'",
+                        rcompleted + 2, rtarget,
+                    ),
+                    runs_completed=rcompleted + 1, target=rtarget,
+                )
             endpoint.pop("focused_by", None)
             if agent is not None:
                 endpoint["done_by"] = agent
@@ -248,6 +271,48 @@ class EndpointsMixin:
             endpoint.pop("focused_by", None)
         self._set_endpoint_status(endpoint, status)
         return endpoint
+
+    def _reset_endpoint_checks_for_rerun(self, endpoint: dict) -> None:
+        """Send this endpoint's assigned per-endpoint check results back to
+        pending for another testing run, keeping their observations/evidence."""
+        assigned = set(endpoint.get("checks", []))
+        for item in self.checklist:
+            if item.get("scope") != "per_endpoint" or item["id"] not in assigned:
+                continue
+            r = (item.get("results") or {}).get(endpoint["id"])
+            if r:
+                r["status"] = "pending"
+                r["ts"] = _now()
+
+    def endpoint_runs(self, endpoint_id: str) -> "int | str":
+        """How many times this endpoint should be tested before it settles —
+        a positive int or 'indefinite' (1 = once). Set per-endpoint by the operator."""
+        endpoint = self.get_endpoint(endpoint_id)
+        if endpoint is None:
+            raise ValueError(f"unknown endpoint {endpoint_id}")
+        return _normalize_runs(endpoint.get("runs"))
+
+    def set_endpoint_runs(self, endpoint_id: str, value) -> dict:
+        """Operator: set how many times this endpoint runs before it can be marked
+        tested for good."""
+        endpoint = self.get_endpoint(endpoint_id)
+        if endpoint is None:
+            raise ValueError(f"unknown endpoint {endpoint_id}")
+        endpoint["runs"] = _normalize_runs(value)
+        return endpoint
+
+    def set_try_harder_endpoints(self, enabled: bool) -> None:
+        """The endpoints page's 'Try harder' switch. Turning it on adds one run
+        (+1) to every endpoint; turning it off removes one (floored at 1).
+        'indefinite' counts are left untouched. New endpoints added while it is on
+        start at runs=2 (see add_endpoint). Scoped to endpoints only."""
+        enabled = bool(enabled)
+        if enabled == self.try_harder_endpoints:
+            return
+        delta = 1 if enabled else -1
+        for endpoint in self.endpoints:
+            endpoint["runs"] = _bump_runs(endpoint.get("runs"), delta)
+        self.data["try_harder_endpoints"] = enabled
 
     def update_endpoint_checks(self, endpoint_id: str, check_ids: list[str]) -> dict:
         endpoint = next((a for a in self.endpoints if a["id"] == endpoint_id), None)

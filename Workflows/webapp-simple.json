@@ -32,7 +32,7 @@
       "kind": "checklist",
       "icon": "<path d=\"M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M9 12l2 2 4-4\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
       "name": "Work on Checklist",
-      "description": "Tune the project checklist to this target, then work every global-scope check to completion. The phase advances only after all global-checks are finished.",
+      "description": "Tune the project checklist to this target, then work every global-scope check to completion. Ignore the endpoint checks - they are worked on later. The phase advances only after all global-checks are finished.",
       "steps": [
         {"check": "adjust_checklist", "title": "Tune the Checklist", "description": "Review the checklist against this target. Mark irrelevant checks 'not applicable' with a one-line reason, and add any check that is missing. Use the API -- notes alone do not change the checklist.", "examples": "GET /api/v1/checklist/titles\nPUT /api/v1/check/{id}/status  {\"status\": \"not applicable\"}\nPUT /api/v1/check/{id}/observations  {\"observations\": \"no TLS, plain HTTP only\"}"},
         {"check": "whole_app_checks", "title": "Work the Global Checks", "repeatable": true, "description": "Work every global-scope check. Focus it, do real testing instead of trusting old notes, record what you did and found, then finish it. Keep going until every global-check is done.", "examples": "POST /api/v1/check/{id}/focus\n...do the actual testing...\nPUT /api/v1/check/{id}/observations  {\"observations\": \"...\"}\nPOST /api/v1/check/{id}/finish"}

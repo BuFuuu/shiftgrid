@@ -5,6 +5,7 @@ This is a platform for agentic pentesting with human oversight. A workspAIce, if
 Ideas behind this project:
 - Like humans, agents need structure to get stuff done
 - Observations preserve knowledge without bloating agent context windows
+- Workflows + Checklist + Notes + Context Window create a prompt engine / harness, which operators can modify live
 - Agents can work in parallel while seeing the others progress
 - API for Agents : Web UI for humans
 - Displays work process and thoughts of the agents live

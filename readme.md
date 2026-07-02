@@ -21,6 +21,7 @@ All in all it comes down to:
 
 The tool is independent of the workflows, checklists, agents, and models you use. As a result, a simple workflow using a low-cost model can produce dramatically different output from a more detailed workflow using premium models running concurrently. The default workflow and checklist are intentionally kept minimal.
 
+[![X](https://img.shields.io/badge/X-@_shiftgrid-black?logo=x)](https://x.com/_shiftgrid)
 
 # GIF
 <p align="center">

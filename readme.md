@@ -1,6 +1,6 @@
 # Shiftgrid
 
-This is a platform for agentic pentesting with human oversight. A workspAIce, if you want to call it that. Workflows define the agentic flow. Created and controlled by humans. Checklists, state machines, and project notes help keep track of all testing and provide transparency and traceability. It enables testing that go beyond the "just throw more agents at it" mentality, making it highly token-efficient.
+This is a platform for agentic pentesting with human oversight. A workspAIce, if you want to call it that. Workflows define the agentic flow. Created and controlled by humans. Checklists, state machines, and project notes help keep track of all testing and provide transparency and traceability. It enables testing that go beyond the "just throw more agents at it" mentality, making it highly token-efficient. (This text is typed by actual fingers)
 
 Ideas behind this project:
 - Like humans, agents need structure to get stuff done

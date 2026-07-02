@@ -12,6 +12,7 @@ Ideas behind this project:
 - Pentesting is a searching problem. This benefits from a structured approach
 - Models are smart
 - Workflows can point to specialized agents (reseacher, script developer, domain experts..)
+- Workflows can accoplish all kinds of tasks and have try-harder modes for deep-diving certain phases
 - Checklists prevent missed tests
 - Endpoint list prevent missed scope
 

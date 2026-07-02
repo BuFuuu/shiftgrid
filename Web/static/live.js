@@ -199,6 +199,8 @@
     var editor = control.querySelector('.runs-editor');
     if (!editor) return;
     var open = !editor.hidden;
+    // Close any other editor that's already open so only one shows at a time.
+    closeRunsEditors(editor);
     editor.hidden = open;
     toggle.setAttribute('aria-expanded', String(!open));
     if (!open) {
@@ -206,4 +208,23 @@
       if (input) { input.focus(); input.select(); }
     }
   }, true);
+
+  // Close open runs editors when the operator clicks anywhere outside a
+  // .runs-control (the control itself calls stopPropagation, so clicks on the
+  // toggle / input / Set button never reach here). `except` keeps the editor
+  // being toggled open untouched.
+  function closeRunsEditors(except) {
+    var editors = document.querySelectorAll('.runs-editor:not([hidden])');
+    for (var i = 0; i < editors.length; i++) {
+      if (editors[i] === except) continue;
+      editors[i].hidden = true;
+      var ctrl = editors[i].closest('.runs-control');
+      var tog = ctrl && ctrl.querySelector('.runs-toggle');
+      if (tog) tog.setAttribute('aria-expanded', 'false');
+    }
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target && e.target.closest && e.target.closest('.runs-control')) return;
+    closeRunsEditors(null);
+  });
 })();

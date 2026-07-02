@@ -271,14 +271,22 @@ def advance_workflow(
                 status_code=403,
                 detail=(
                     "advancing phases is restricted to the human operator for this project "
-                    "(agent advance is disabled); ask the operator to advance via the UI"
+                    "(agent advance is disabled); you cannot advance and must wait for the "
+                    "human operator to advance via the UI. Stop testing now — do not begin "
+                    "the next phase's work (e.g. endpoint testing) until the operator "
+                    "advances and that phase becomes active."
                 ),
             )
         current = wf.phase(p.current_phase)
         if current is not None and current.get("human_advance"):
             raise HTTPException(
                 status_code=403,
-                detail=f"phase {current['id']} can only be advanced by a human operator via the UI",
+                detail=(
+                    f"phase {current['id']} can only be advanced by a human operator via the UI; "
+                    "you cannot advance and must wait for the human operator. Stop testing now — "
+                    "do not begin the next phase's work (e.g. endpoint testing) until the operator "
+                    "advances and that phase becomes active."
+                ),
             )
     # Advancing a phase never requires a notes diff, even when notes_required=true —
     # the agent already recorded its context on the step/check/endpoint it just

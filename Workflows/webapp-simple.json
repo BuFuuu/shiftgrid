@@ -21,6 +21,7 @@
       "id": "free_reconnaissance",
       "icon": "<circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M15 9l-2 4-4 2 2-4 4-2z\" fill=\"currentColor\"/>",
       "name": "Free Reconnaissance",
+      "runs": 3,
       "description": "Step back and look for recon gaps the structured steps missed. Recon only -- no security testing here.",
       "steps": [
         {"check": "free_recon", "title": "Free-Form Recon", "repeatable": true, "description": "Read GET /api/v1/notes and decide if anything is still missing recon-wise: an unscanned path, an unfingerprinted host, a role whose surface you do not understand. Only act on real gaps; otherwise finish with status=skipped.", "examples": "Targeted: ffuf a path you saw in JS but never enumerated.\nSkipped: status=skipped, observations='Recon already covered all hosts, roles and endpoints. Nothing missing.'"}
@@ -54,6 +55,7 @@
       "id": "free_testing",
       "icon": "<path d=\"M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z\" fill=\"currentColor\"/><circle cx=\"19\" cy=\"5\" r=\"1.5\" fill=\"currentColor\"/><circle cx=\"5\" cy=\"19\" r=\"1.5\" fill=\"currentColor\"/>",
       "name": "Free Testing",
+      "runs": 3,
       "description": "Anything the structured phases missed? Chase hunches and chain what you have found.",
       "steps": [
         {"check": "refine_notes", "title": "Refine Notes", "description": "The notes should not be a simple log of what happened. They should reflect a more holistic view of the application: what is its main use case and therefore what are the main risks? What is the attacker model? What did the creators of the app try to accomplish when they developed it, and did they miss something? Rewrite the notes to contain both a structured overview of this test plus the more holistic risk view."},

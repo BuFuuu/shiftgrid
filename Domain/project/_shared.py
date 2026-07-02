@@ -81,12 +81,18 @@ class RunAgainError(Exception):
         self.target = target
 
 
+# Upper bound on a finite run count. 'indefinite' (∞) is unaffected — it's not a
+# finite number. Kept low enough that the runs progress bar stays compact.
+RUNS_MAX = 20
+
+
 def _normalize_runs(value) -> "int | str":
     """Clean a configured run count into a positive int or the string
     'indefinite'. The count is the TOTAL number of times an item runs: 1 (the
     default) = run once, no looping. Anything unset, non-numeric, or < 1 falls
-    back to 1. Accepts a few spellings of 'indefinite' from hand-edited JSON /
-    operator input, plus the ∞ glyph the UI renders."""
+    back to 1, and finite counts are capped at RUNS_MAX. Accepts a few spellings
+    of 'indefinite' from hand-edited JSON / operator input, plus the ∞ glyph the
+    UI renders."""
     if isinstance(value, bool):  # bool is an int subclass — never a count
         return 1
     if isinstance(value, str):
@@ -101,7 +107,9 @@ def _normalize_runs(value) -> "int | str":
         n = int(value)
     except (TypeError, ValueError):
         return 1
-    return n if n >= 1 else 1
+    if n < 1:
+        return 1
+    return n if n <= RUNS_MAX else RUNS_MAX
 
 
 def _runs_should_loop(target, runs_completed: int) -> bool:
@@ -286,6 +294,7 @@ __all__ = [
     'StepDisabledError',
     'FocusRequiredError',
     'RunAgainError',
+    'RUNS_MAX',
     '_normalize_runs',
     '_runs_should_loop',
     '_bump_runs',

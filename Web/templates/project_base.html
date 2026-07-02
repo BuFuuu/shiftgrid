@@ -42,13 +42,25 @@
 {% set num = '∞' if is_indef else target %}
 {% set active = is_indef or (target != 1) %}
 <span class="runs-control" onclick="event.stopPropagation()">
-  <button type="button" class="ctx-icon-svg runs-toggle{% if active %} runs-active{% endif %}" aria-label="Run count" aria-expanded="false" data-empty="{{ 'false' if active else 'true' }}" data-tooltip="Runs {{ num }}× ({{ 'once' if not active else num ~ ' times' }}){% if runs_completed %} — {{ runs_completed }} done so far{% endif %}. Click to change how many times this {{ noun }} runs (a number, or ∞ / 'indefinite'). 1 = once.">
+  <button type="button" class="ctx-icon-svg runs-toggle{% if active %} runs-active{% endif %}" aria-label="Run count" aria-expanded="false" data-empty="{{ 'false' if active else 'true' }}" data-tooltip="Runs {{ num }}× ({{ 'once' if not active else num ~ ' times' }}){% if runs_completed %} — {{ runs_completed }} done so far{% endif %}. Click to change how many times this {{ noun }} runs (1–20, or ∞ / 'indefinite'). 1 = once.">
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
     <span class="runs-badge">&times;{{ num }}</span>
   </button>
+  {# Multi-run phases/checks/endpoints get a small segmented progress bar showing
+     how many of the scheduled runs have completed. Styled to match the whole-
+     workflow page-progress meter. Skipped for 'once' (1) and indefinite (∞),
+     which have no fixed total to fill against. #}
+  {% if not is_indef and target|int > 1 %}
+  {% set runs_total = target|int %}
+  {% set runs_done = [runs_completed|int, runs_total]|min %}
+  <span class="runs-progress" role="progressbar" aria-valuemin="0" aria-valuemax="{{ runs_total }}" aria-valuenow="{{ runs_done }}" aria-label="{{ runs_done }} of {{ runs_total }} runs completed">
+    <span class="runs-progress-meter" aria-hidden="true">{% for i in range(runs_total) %}<span class="runs-progress-seg{% if i < runs_done %} on{% endif %}"></span>{% endfor %}</span>
+    <span class="runs-progress-pct">{{ runs_done }}/{{ runs_total }}</span>
+  </span>
+  {% endif %}
   <form method="post" action="{{ action }}" class="runs-editor" hidden>
     {% for k, v in hidden.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
-    <input type="text" name="runs" value="{{ num }}" class="runs-input" aria-label="Number of runs" size="4" autocomplete="off" title="Number of runs, or ∞ / 'indefinite'. 1 = once.">
+    <input type="text" name="runs" value="{{ num }}" class="runs-input" aria-label="Number of runs" size="4" autocomplete="off" title="Number of runs (1–20), or ∞ / 'indefinite'. 1 = once.">
     <button class="btn small primary" type="submit">Set</button>
   </form>
 </span>
@@ -121,7 +133,9 @@
         {% if project.scope %}
           <div class="sidebar-scope-list">
             {% for item in project.scope[:4] %}
-              <code>{{ item }}</code>
+              <button type="button" class="sidebar-scope-item" data-scope-copy title="Copy scope" aria-label="Copy scope {{ item }}">
+                <code>{{ item }}</code>
+              </button>
             {% endfor %}
             {% if project.scope | length > 4 %}
               <span class="muted small">+{{ project.scope | length - 4 }} more</span>
@@ -352,6 +366,44 @@
         return;
       }
       copyFallback(text);
+    });
+  })();
+  (function () {
+    const scopeButtons = document.querySelectorAll('[data-scope-copy]');
+    if (!scopeButtons.length) return;
+
+    function copyFallback(text) {
+      const field = document.createElement('textarea');
+      field.value = text;
+      field.setAttribute('readonly', '');
+      field.style.position = 'fixed';
+      field.style.opacity = '0';
+      document.body.appendChild(field);
+      field.select();
+      document.execCommand('copy');
+      document.body.removeChild(field);
+    }
+
+    scopeButtons.forEach(function (btn) {
+      const code = btn.querySelector('code');
+      function markCopied() {
+        btn.classList.add('copied');
+        setTimeout(function () {
+          btn.classList.remove('copied');
+        }, 1100);
+      }
+      btn.addEventListener('click', function () {
+        const text = code ? code.textContent.trim() : '';
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(markCopied).catch(function () {
+            copyFallback(text);
+            markCopied();
+          });
+          return;
+        }
+        copyFallback(text);
+        markCopied();
+      });
     });
   })();
 </script>

@@ -739,6 +739,10 @@ main.content.landing-core { max-width: 560px; padding-top: 96px; }
   border-radius: 10px;
   padding: 10px;
   text-align: left;
+  transition: border-color 0.15s;
+}
+.sidebar-info-box:hover {
+  border-color: var(--accent);
 }
 .sidebar-info-title {
   color: var(--muted);
@@ -763,6 +767,36 @@ main.content.landing-core { max-width: 560px; padding-top: 96px; }
   overflow-wrap: anywhere;
   text-align: center;
 }
+.sidebar-scope-item {
+  display: block;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--muted);
+  padding: 5px 14px;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.sidebar-scope-item code {
+  display: block;
+  overflow-wrap: anywhere;
+  text-align: center;
+  background: none;
+  padding: 0;
+  color: var(--text);
+}
+.sidebar-scope-item:hover {
+  color: var(--text);
+  background: rgba(96,165,250,0.10);
+}
+.sidebar-scope-item.copied {
+  color: var(--ok);
+  border-color: rgba(74,222,128,0.5);
+  background: rgba(74,222,128,0.10);
+}
+.sidebar-scope-item.copied code { color: var(--ok); }
 .sidebar nav { display: flex; flex-direction: column; gap: 2px; align-items: center; }
 .sidebar nav a {
   display: flex; align-items: center; justify-content: flex-start; gap: 10px;
@@ -2986,7 +3020,10 @@ body.js-tooltips [data-tooltip]::after { display: none !important; }
 .rich-tooltip strong { color: var(--accent); font-weight: 600; }
 .rich-tooltip strong + br + strong { margin-top: 6px; }
 
-.ctx-icons { flex: 0 0 102px; width: 102px; display: inline-flex; align-items: center; gap: 6px; }
+/* Min 102px keeps the status dropdowns aligned across rows; grows past that only
+   when a multi-run check adds its runs progress bar, so the bar no longer spills
+   over the status dropdown. */
+.ctx-icons { flex: 0 0 auto; min-width: 102px; display: inline-flex; align-items: center; gap: 6px; }
 .ctx-icon-svg {
   position: relative;
   display: inline-flex;
@@ -3063,6 +3100,30 @@ body.js-tooltips [data-tooltip]::after { display: none !important; }
 }
 .runs-editor[hidden] { display: none; }
 .runs-input { width: 56px; padding: 4px 6px; text-align: center; font-family: inherit; }
+/* Per-item runs progress: same skewed segmented meter as the whole-workflow
+   .page-progress bar, sized to sit inline next to the runs icon and tinted with
+   the runs accent so filled segments read clearly. */
+.runs-progress { display: inline-flex; align-items: center; gap: 5px; margin-left: 5px; }
+/* A touch more breathing room between the runs icon and its progress bar on the
+   workflow page, where they sit inline in the phase title. */
+.workflow-stages .runs-progress { margin-left: 9px; }
+.runs-progress-meter { display: inline-flex; gap: 2px; align-items: center; }
+.runs-progress-seg {
+  width: 4px;
+  height: 11px;
+  background: var(--accent);
+  opacity: 0.2;
+  transform: skewX(-12deg);
+}
+.runs-progress-seg.on { opacity: 1; }
+.runs-progress-pct {
+  font-family: var(--vt-accent-font);
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+}
 
 .row-editor { padding-top: 10px; }
 .context-form { display: flex; flex-direction: column; gap: 10px; }

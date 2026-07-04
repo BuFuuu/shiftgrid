@@ -172,6 +172,29 @@ class ChecklistTitleEntry(BaseModel):
     category_name: str
 
 
+class CheckObservation(BaseModel):
+    """A global check's id and its recorded observations — nothing else."""
+
+    check_id: str
+    observations: str = ""
+
+
+class ChecklistObservationsResponse(BaseModel):
+    observations: list[CheckObservation]
+
+
+class EndpointCheckObservation(BaseModel):
+    """A per-endpoint check result's ids and its recorded observations — nothing else."""
+
+    check_id: str
+    endpoint_id: str
+    observations: str = ""
+
+
+class EndpointChecklistObservationsResponse(BaseModel):
+    observations: list[EndpointCheckObservation]
+
+
 class Finding(BaseModel):
     id: str
     title: str
@@ -331,6 +354,18 @@ class WorkflowStepsResponse(BaseModel):
     steps: list[StepRef]
 
 
+class StepObservation(BaseModel):
+    """Just a step's id and its recorded observations — nothing else."""
+
+    step_id: str
+    observations: str = ""
+
+
+class WorkflowObservationsResponse(BaseModel):
+    workflow_id: str
+    observations: list[StepObservation]
+
+
 class PhaseStepsResponse(BaseModel):
     workflow_id: str
     phase_id: str
@@ -454,6 +489,10 @@ class UpdateEndpointRequest(BaseModel):
         ),
     )
 
+    # Reject unknown fields loudly (422) instead of silently dropping them — e.g.
+    # `runs`, which belongs on PUT /endpoint/{id}/runs, not here.
+    model_config = {"extra": "forbid"}
+
 
 class CreateFeatureGroupRequest(BaseModel):
     name: str = Field(min_length=1)
@@ -492,6 +531,29 @@ class UpdateCheckObservationsRequest(BaseModel):
 
     # Symmetric guard: a misplaced `status` here should 422, not vanish.
     model_config = {"extra": "forbid"}
+
+
+class SetRunsRequest(BaseModel):
+    runs: int | str = Field(
+        description="Total times to run before it settles: a positive int (capped at 20) "
+        "or 'indefinite' for an unbounded loop. 1 = run once (no looping).",
+    )
+    model_config = {"extra": "forbid"}
+
+
+class CheckRunsResponse(BaseModel):
+    check_id: str
+    runs: int | str
+
+
+class PhaseRunsResponse(BaseModel):
+    phase_id: str
+    runs: int | str
+
+
+class EndpointRunsResponse(BaseModel):
+    endpoint_id: str
+    runs: int | str
 
 
 _AGENT_COMPOSED_DESC = (

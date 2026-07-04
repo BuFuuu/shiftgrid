@@ -453,21 +453,6 @@
         }
       });
     });
-    document.querySelectorAll('.notes-toggle').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var li = btn.closest('li');
-        if (!li) return;
-        var editor = li.querySelector('.step-notes-editor');
-        if (!editor) return;
-        var open = !editor.hidden;
-        editor.hidden = open;
-        btn.setAttribute('aria-expanded', String(!open));
-        if (!open) {
-          var input = editor.querySelector('textarea[name="observations"]');
-          if (input) input.focus();
-        }
-      });
-    });
     // Raw-capture upload panels: each toggle reveals the sibling upload form in
     // its own row (global-check rows and workflow steps each have their own).
     [['.check-row-upload-toggle', '.check-row-evidence-upload'],

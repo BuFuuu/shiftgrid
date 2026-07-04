@@ -22,6 +22,8 @@ from ..schemas import (
     SetEndpointFeatureGroupRequest,
     UpdateEndpointRequest,
     EndpointActionResponse,
+    SetRunsRequest,
+    EndpointRunsResponse,
 )
 from .._common import (
     _update_notes_hint,
@@ -101,6 +103,24 @@ def update_endpoint(
         update_notes=_update_notes_hint(p),
         next=_endpoint_loop_next(p, service.workflow_for(p), endpoint_id),
     )
+
+
+@router.put("/endpoint/{endpoint_id}/runs", response_model=EndpointRunsResponse)
+def put_endpoint_runs(
+    endpoint_id: str,
+    body: SetRunsRequest,
+    service: ProjectService = Depends(require_loaded),
+):
+    """Set how many times this specific endpoint must be tested before it settles.
+    Scoped to this one endpoint only. Accepts a positive int (capped at 20) or
+    'indefinite' for an unbounded loop; 1 = once."""
+    p = service.current
+    try:
+        p.set_endpoint_runs(endpoint_id, body.runs)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    service.save(p)
+    return EndpointRunsResponse(endpoint_id=endpoint_id, runs=p.endpoint_runs(endpoint_id))
 
 
 @router.post("/endpoint/{endpoint_id}/focus", response_model=EndpointActionResponse)

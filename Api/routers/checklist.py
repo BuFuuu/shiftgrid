@@ -15,6 +15,10 @@ from ..schemas import (
     ChecklistItemResult,
     CheckStatusUpdateResponse,
     ChecklistTitleEntry,
+    CheckObservation,
+    ChecklistObservationsResponse,
+    EndpointCheckObservation,
+    EndpointChecklistObservationsResponse,
     RawCaptureMeta,
     EvidenceSourceType,
     _AGENT_COMPOSED_DESC,
@@ -22,6 +26,8 @@ from ..schemas import (
     UpdateCheckObservationsRequest,
     UpdateCheckStatusRequest,
     FinishCheckResponse,
+    SetRunsRequest,
+    CheckRunsResponse,
 )
 from .._common import (
     _enforce_notes_update,
@@ -81,6 +87,39 @@ def list_checklist_titles(service: ProjectService = Depends(require_loaded)):
         }
         for item in p.checklist
     ]
+
+
+@router.get("/checklist/observations", response_model=ChecklistObservationsResponse)
+def list_global_check_observations(service: ProjectService = Depends(require_loaded)):
+    """All observations from global-scope checks in one call: a flat list of
+    {check_id, observations}, one per global check. Nothing else."""
+    p = service.current
+    out = []
+    for item in p.checklist:
+        if item.get("scope") != "global":
+            continue
+        r = (item.get("results") or {}).get("_global") or {}
+        out.append(CheckObservation(check_id=item["id"], observations=r.get("observations", "")))
+    return ChecklistObservationsResponse(observations=out)
+
+
+@router.get("/checklist/observations/endpoints", response_model=EndpointChecklistObservationsResponse)
+def list_endpoint_check_observations(service: ProjectService = Depends(require_loaded)):
+    """All observations from per-endpoint checks in one call: a flat list of
+    {check_id, endpoint_id, observations}, one entry per (check, endpoint) result.
+    Nothing else."""
+    p = service.current
+    out = []
+    for item in p.checklist:
+        if item.get("scope") != "per_endpoint":
+            continue
+        for endpoint_id, r in (item.get("results") or {}).items():
+            out.append(EndpointCheckObservation(
+                check_id=item["id"],
+                endpoint_id=endpoint_id,
+                observations=(r or {}).get("observations", ""),
+            ))
+    return EndpointChecklistObservationsResponse(observations=out)
 
 
 @router.get("/checklist/next", response_model=ChecklistItem)
@@ -154,6 +193,23 @@ def put_check_observations(
     r = p.set_check_observations(check_id, body.observations, endpoint_id=body.endpoint_id)
     service.save(p)
     return r
+
+
+@router.put("/check/{check_id}/runs", response_model=CheckRunsResponse)
+def put_check_runs(
+    check_id: str,
+    body: SetRunsRequest,
+    service: ProjectService = Depends(require_loaded),
+):
+    """Set how many times this check must be worked before it can settle. Accepts
+    a positive int (capped at 20) or 'indefinite' for an unbounded loop; 1 = once."""
+    p = service.current
+    try:
+        p.set_check_runs(check_id, body.runs)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    service.save(p)
+    return CheckRunsResponse(check_id=check_id, runs=p.check_runs(check_id))
 
 
 @router.put("/check/{check_id}/status", response_model=CheckStatusUpdateResponse)

@@ -212,6 +212,182 @@
     {% block content %}{% endblock %}
   </main>
 </div>
+
+{# Shared observations popup. Every observation preview (steps, checks,
+   endpoints) is a .step-notes-preview button sitting next to a hidden
+   .step-notes-editor form that carries the correct POST action + fields. The
+   popup reads/writes that form: edits are buffered in memory so closing without
+   saving keeps them for the next open, and only Save (or Ctrl+Enter) submits. #}
+<div class="endpoint-modal-backdrop" id="obs-modal" hidden>
+  <div class="endpoint-modal" role="dialog" aria-modal="true" aria-labelledby="obs-modal-title">
+    <div class="endpoint-modal-head">
+      <h2 id="obs-modal-title">Observations</h2>
+      <div class="endpoint-modal-head-actions">
+        <button type="button" class="copy-icon-btn" id="obs-modal-copy" aria-label="Copy observations">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button type="button" class="endpoint-modal-close" id="obs-modal-close" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div class="form endpoint-modal-form">
+      <div class="md-editor obs-md-editor">
+        <div class="md-backdrop" id="obs-modal-backdrop" aria-hidden="true"><div class="md-highlights" id="obs-modal-highlights"></div></div>
+        <textarea id="obs-modal-text" class="md-input" spellcheck="false" placeholder="What you tested, what you saw, what it means"></textarea>
+      </div>
+      <div class="actions"><button type="button" class="btn primary obs-modal-save" id="obs-modal-save" disabled>Save</button></div>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var modal = document.getElementById('obs-modal');
+    if (!modal) return;
+    var textarea = document.getElementById('obs-modal-text');
+    var saveBtn = document.getElementById('obs-modal-save');
+    var closeBtn = document.getElementById('obs-modal-close');
+    var copyBtn = document.getElementById('obs-modal-copy');
+    var backdrop = document.getElementById('obs-modal-backdrop');
+    var hl = document.getElementById('obs-modal-highlights');
+    // Unsaved edits live in memory only, keyed by the row's POST target. Closing
+    // without saving buffers the text so reopening shows it again; nothing
+    // reaches the server until Save submits that row's own hidden form.
+    var buffer = {};
+    var current = null; // { form, key, original }
+
+    // Markdown syntax highlight — mirrors the Notes editor (core/Web/templates/
+    // notes.html): a transparent-text textarea over a coloured backdrop. We keep
+    // the markers visible and only change colour, so the caret stays aligned. The
+    // popup's token colours are scoped to the blue accent (see style.css) to match
+    // the observation hover preview.
+    var ESC = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
+    function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return ESC[c]; }); }
+    function inline(s) {
+      s = s.replace(/`([^`]+?)`/g, '<span class="md-code">`$1`</span>');
+      s = s.replace(/\*\*([^*]+?)\*\*/g, '<span class="md-bold">**$1**</span>');
+      s = s.replace(/(^|[^*])\*([^*]+?)\*(?!\*)/g, '$1<span class="md-italic">*$2*</span>');
+      return s;
+    }
+    function line(ln) {
+      if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(ln))
+        return '<span class="md-hr">' + esc(ln) + '</span>';
+      var h = ln.match(/^(\s*)(#{1,6})(\s+)(.*)$/);
+      if (h) {
+        var lvl = ' md-h' + h[2].length;
+        return esc(h[1]) + '<span class="md-head-marker' + lvl + '">' + esc(h[2]) + '</span>'
+             + esc(h[3]) + '<span class="md-head' + lvl + '">' + inline(esc(h[4])) + '</span>';
+      }
+      var q = ln.match(/^(\s*)(>+)(.*)$/);
+      if (q)
+        return esc(q[1]) + '<span class="md-quote-marker">' + esc(q[2]) + '</span>'
+             + '<span class="md-quote">' + inline(esc(q[3])) + '</span>';
+      var li = ln.match(/^(\s*)([-*+]|\d{1,9}[.)])(\s+)(.*)$/);
+      if (li)
+        return esc(li[1]) + '<span class="md-list-marker">' + esc(li[2]) + '</span>'
+             + esc(li[3]) + inline(esc(li[4]));
+      return inline(esc(ln));
+    }
+    function syncScroll() {
+      backdrop.scrollTop = textarea.scrollTop;
+      backdrop.scrollLeft = textarea.scrollLeft;
+    }
+    function render() {
+      var text = textarea.value;
+      var html = text.split('\n').map(line).join('\n');
+      if (text.charAt(text.length - 1) === '\n') html += ' ';
+      hl.innerHTML = html;
+      syncScroll();
+    }
+
+    function keyFor(form) {
+      var parts = [form.getAttribute('action') || ''];
+      form.querySelectorAll('input[type=hidden]').forEach(function (h) {
+        parts.push(h.name + '=' + h.value);
+      });
+      return parts.join('&');
+    }
+
+    function refreshSave() {
+      saveBtn.disabled = !current || textarea.value === current.original;
+    }
+
+    function openFor(btn) {
+      var row = btn.closest('li');
+      var editor = row ? row.querySelector('.step-notes-editor') : null;
+      var form = editor ? editor.querySelector('form') : null;
+      var src = form ? form.querySelector('textarea[name=observations]') : null;
+      if (!form || !src) return;
+      var key = keyFor(form);
+      current = { form: form, key: key, original: src.value };
+      textarea.value = (key in buffer) ? buffer[key] : src.value;
+      modal.hidden = false;
+      render();
+      refreshSave();
+      textarea.focus();
+    }
+
+    // Close without saving: keep the edit in the buffer for next time.
+    function close() {
+      if (current) buffer[current.key] = textarea.value;
+      modal.hidden = true;
+      current = null;
+    }
+
+    function save() {
+      if (!current || textarea.value === current.original) return;
+      var src = current.form.querySelector('textarea[name=observations]');
+      src.value = textarea.value;
+      delete buffer[current.key];
+      current.form.submit();
+    }
+
+    document.querySelectorAll('.step-notes-preview').forEach(function (btn) {
+      btn.addEventListener('click', function () { openFor(btn); });
+    });
+    textarea.addEventListener('input', function () { render(); refreshSave(); });
+    textarea.addEventListener('scroll', syncScroll);
+    textarea.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); }
+    });
+    // Copy the current observation text to the clipboard. Falls back to a
+    // hidden-textarea execCommand path when the async Clipboard API is missing
+    // (older browsers / non-secure contexts). A brief "Copied" label confirms it.
+    var copyResetTimer = null;
+    function copyText() {
+      var text = textarea.value;
+      function done() {
+        copyBtn.classList.add('copied');
+        if (copyResetTimer) clearTimeout(copyResetTimer);
+        copyResetTimer = setTimeout(function () {
+          copyBtn.classList.remove('copied');
+        }, 1000);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+      function fallbackCopy() {
+        var tmp = document.createElement('textarea');
+        tmp.value = text;
+        tmp.style.position = 'fixed';
+        tmp.style.opacity = '0';
+        document.body.appendChild(tmp);
+        tmp.select();
+        try { document.execCommand('copy'); done(); } catch (e) {}
+        document.body.removeChild(tmp);
+        textarea.focus();
+      }
+    }
+
+    saveBtn.addEventListener('click', save);
+    copyBtn.addEventListener('click', copyText);
+    closeBtn.addEventListener('click', close);
+    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !modal.hidden) close();
+    });
+  })();
+</script>
 <script>
   (function () {
     const scroller = document.getElementById('phase-bar-inner');
@@ -366,6 +542,49 @@
         return;
       }
       copyFallback(text);
+    });
+  })();
+  // Generic copy-to-clipboard for any .copy-icon-btn carrying its text in a
+  // data-copy-text attribute (e.g. the endpoints page endpoint-copy button).
+  // Matches the sidebar path button's feedback: green flash on copy.
+  (function () {
+    const chips = document.querySelectorAll('.copy-icon-btn[data-copy-text]');
+    if (!chips.length) return;
+
+    function copyFallback(text) {
+      const field = document.createElement('textarea');
+      field.value = text;
+      field.setAttribute('readonly', '');
+      field.style.position = 'fixed';
+      field.style.opacity = '0';
+      document.body.appendChild(field);
+      field.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(field);
+    }
+
+    chips.forEach(function (chip) {
+      let timer = null;
+      function markCopied() {
+        chip.classList.add('copied');
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(function () {
+          chip.classList.remove('copied');
+        }, 1000);
+      }
+      chip.addEventListener('click', function (e) {
+        // Inside a <summary>, stop the click from toggling the endpoint card.
+        e.preventDefault();
+        e.stopPropagation();
+        const text = chip.getAttribute('data-copy-text') || '';
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(markCopied, function () {
+            copyFallback(text); markCopied();
+          });
+        } else {
+          copyFallback(text); markCopied();
+        }
+      });
     });
   })();
   (function () {

@@ -1448,16 +1448,23 @@ textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .md-editor .md-highlights {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px;
-  line-height: 1.5;
+  /* Fixed px (not unitless) line-height. A unitless value is recomputed against
+     each element's own font-size, so larger headings would grow their line and
+     push every line below out of caret-alignment. A fixed px value is inherited
+     as-is, locking the line height so headings can be bigger without drift. */
+  line-height: 19.5px;
   letter-spacing: normal;
   tab-size: 4;
 }
 .md-editor textarea.md-input::selection { background: rgba(28,156,236,0.30); }
 
 /* Token styling. Bold + italic keep the same advance width in a monospace
-   font, so they never shift the caret. FONT-SIZE does (the textarea underneath
-   is a single fixed size), so the larger headings — and the lines below them —
-   drift a little out of caret-alignment: an accepted trade for legibility. */
+   font, so they never shift the caret. Larger heading font-sizes are safe for
+   VERTICAL alignment because the fixed px line-height above locks each line's
+   height — the bigger glyphs render within it without pushing later lines down.
+   (The heading line itself still advances horizontally faster than the fixed-
+   size textarea beneath it, so the caret drifts sideways only while typing on
+   that one line — an accepted trade for legible headings.) */
 .md-head         { font-weight: 700; color: var(--accent); }
 .md-head-marker  { font-weight: 700; color: var(--muted); }
 /* Size + colour step down by level so #, ##, ### read as a clear hierarchy. */
@@ -1631,8 +1638,66 @@ table.list tr.sub td.indent { padding-left: 22px; color: var(--muted); }
   padding: 0 4px;
 }
 .endpoint-modal-close:hover { color: var(--text); }
+.endpoint-modal-head-actions { display: flex; align-items: center; gap: 8px; }
+/* Small icon-only copy button. Borderless at rest; a blue accent border
+   appears on hover, and a green flash confirms the copy (mirrors the sidebar
+   project-path button's accent-blue / ok-green feedback). */
+.copy-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  padding: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.copy-icon-btn svg { display: block; }
+.copy-icon-btn:hover { color: var(--text); border-color: var(--accent); }
+.copy-icon-btn.copied {
+  color: var(--ok);
+  border-color: rgba(74,222,128,0.55);
+  animation: copy-flash 1s ease-out;
+}
+@keyframes copy-flash {
+  0%   { background: rgba(74,222,128,0.45); border-color: var(--ok); }
+  100% { background: rgba(74,222,128,0.10); border-color: rgba(74,222,128,0.55); }
+}
 .endpoint-modal-form { gap: 10px; }
 .endpoint-modal-form .actions { margin-top: 2px; }
+/* Observations popup: roomier than the default endpoint-modal, with a taller
+   editing area. */
+#obs-modal .endpoint-modal { max-width: 760px; }
+#obs-modal .obs-md-editor { width: 100%; }
+#obs-modal .md-input { min-height: 340px; }
+#obs-modal .md-input::placeholder { color: var(--muted); -webkit-text-fill-color: var(--muted); }
+/* Colour every markdown token in the blue accent so the editor reads like the
+   observation hover preview. Crucially we change ONLY the colour: weight, style
+   and size are forced back to the textarea's own metrics. Bolder/bigger glyphs
+   advance wider than the transparent textarea beneath, which drifts the caret
+   off the text as you type — so here markers stay plain and only turn blue. */
+#obs-modal .md-head, #obs-modal .md-head-marker,
+#obs-modal .md-bold, #obs-modal .md-italic,
+#obs-modal .md-code, #obs-modal .md-list-marker,
+#obs-modal .md-quote, #obs-modal .md-quote-marker,
+#obs-modal .md-hr {
+  color: var(--accent);
+  font-weight: 400;
+  font-style: normal;
+  font-size: 1em;
+}
+/* Observations popup: Save stays grey while the text matches what's stored and
+   turns blue (.btn.primary) the moment there's an unsaved change to push. */
+.obs-modal-save:disabled,
+.obs-modal-save:disabled:hover {
+  background: var(--panel-2);
+  border-color: var(--border);
+  color: var(--muted);
+  opacity: 1;
+  cursor: default;
+}
 /* Keep fields (esp. the resizable description) inside the modal: only allow
    vertical resize, and the modal grows in height to match. */
 .endpoint-modal-form textarea,

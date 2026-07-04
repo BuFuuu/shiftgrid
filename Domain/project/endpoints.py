@@ -257,6 +257,10 @@ class EndpointsMixin:
                     ),
                     runs_completed=rcompleted + 1, target=rtarget,
                 )
+            # Final testing run settling (no loop): count this run too, so a
+            # multi-run endpoint's run meter reads target/target, not one short.
+            if rtarget != 1:
+                endpoint["runs_completed"] = rcompleted + 1
             endpoint.pop("focused_by", None)
             if agent is not None:
                 endpoint["done_by"] = agent

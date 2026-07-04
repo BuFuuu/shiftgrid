@@ -31,8 +31,12 @@ from ..schemas import (
     PhaseStepsResponse,
     PhaseView,
     UpdatePhaseContextRequest,
+    SetRunsRequest,
+    PhaseRunsResponse,
     WorkflowStateResponse,
     WorkflowStepsResponse,
+    WorkflowObservationsResponse,
+    StepObservation,
     StepRef,
     StepDetailResponse,
     FinishStepResponse,
@@ -214,6 +218,24 @@ def update_workflow_phase_context(
     p.update_phase_context(phase_id, description=body.description)
     service.save(p)
     return PhaseView(**p.get_phase_view(wf, phase_id))
+
+
+@router.put("/workflow/phases/{phase_id}/runs", response_model=PhaseRunsResponse)
+def set_workflow_phase_runs(
+    phase_id: str,
+    body: SetRunsRequest,
+    service: ProjectService = Depends(require_loaded),
+):
+    """Set how many times this phase runs before advancing. Saves a per-project
+    override to project.json (workflow_phases map); never modifies the source
+    workflow file. Accepts a positive int (capped at 20) or 'indefinite'; 1 = once."""
+    p = service.current
+    wf = service.workflow_for(p)
+    if wf.phase(phase_id) is None:
+        raise HTTPException(status_code=404, detail=f"phase {phase_id} not found in workflow {wf.id}")
+    p.set_phase_runs(wf, phase_id, body.runs)
+    service.save(p)
+    return PhaseRunsResponse(phase_id=phase_id, runs=p.phase_runs(wf, phase_id))
 
 
 @router.get("/workflow/endpoint-testing/status", response_model=EndpointWorkflowStatusResponse)
@@ -503,6 +525,23 @@ def list_workflow_steps(workflow_id: str, service: ProjectService = Depends(requ
             detail=f"workflow {workflow_id} is not loaded; use /workflow/phases/{{phase_id}}/steps for phase steps",
         )
     return WorkflowStepsResponse(workflow_id=wf.id, steps=_steps_for_workflow(p, wf))
+
+
+@router.get("/workflow/observations", response_model=WorkflowObservationsResponse)
+def list_workflow_observations(service: ProjectService = Depends(require_loaded)):
+    """All observations across the workflow in one call: a flat list of
+    {step_id, observations} for every step, in phase/step order. Nothing else."""
+    p = service.current
+    wf = service.workflow_for(p)
+    out = []
+    for phase in wf.phases:
+        for step in phase.get("steps", []):
+            step_id = _step_id(step)
+            if not step_id:
+                continue
+            state = p.get_step_state(phase["id"], step_id, workflow=wf)
+            out.append(StepObservation(step_id=step_id, observations=state.get("observations", "")))
+    return WorkflowObservationsResponse(workflow_id=wf.id, observations=out)
 
 
 def _phase_step(workflow, phase_id: str, step_id: str) -> tuple[dict, dict]:

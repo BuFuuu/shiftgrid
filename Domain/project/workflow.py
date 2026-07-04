@@ -342,6 +342,10 @@ class WorkflowMixin:
         # and loop back to the first one instead of advancing (run_notice set).
         if self._loop_phase_if_more_runs(workflow):
             return self.current_phase
+        # The phase's final run just completed (it didn't loop). Count it so a
+        # multi-run phase's run meter reads target/target instead of lagging one
+        # behind — single-run phases don't track a run count.
+        self._count_phase_final_run(workflow, self.current_phase)
         nxt = self._next_active_phase(workflow, self.current_phase, skip_optional=skip_optional)
         if nxt is None:
             return None
@@ -403,6 +407,16 @@ class WorkflowMixin:
             "phase", f"Phase '{phase.get('name', pid)}'", completed + 2, target
         )
         return True
+
+    def _count_phase_final_run(self, workflow: Workflow, phase_id: str) -> None:
+        """Record the completion of a phase's last run as it advances (it looped
+        for every run before this one, so its counter is one short). Skips
+        single-run phases, which don't carry a run meter."""
+        if self.phase_runs(workflow, phase_id) == 1:
+            return
+        entry = self.workflow_phases.setdefault(phase_id, {})
+        entry["runs_completed"] = self.phase_runs_completed(phase_id) + 1
+        entry["ts"] = _now()
 
     def _reset_phase_steps_for_rerun(self, workflow: Workflow, phase_id: str) -> None:
         """Send every (non-disabled) step in a phase back to pending for another

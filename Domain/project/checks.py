@@ -338,6 +338,10 @@ class ChecksMixin:
                     _runs_message("check", f"Check '{item.get('title', check_id)}'", completed + 2, target),
                     runs_completed=completed + 1, target=target,
                 )
+            # Final run settling (no loop): count this run too, so a multi-run
+            # check's run meter reads target/target rather than lagging one behind.
+            if target != 1:
+                r["runs_completed"] = completed + 1
         r["finished"] = True
         r.pop("focused_by", None)
         if agent is not None:

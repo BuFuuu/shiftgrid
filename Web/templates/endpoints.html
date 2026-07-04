@@ -207,6 +207,9 @@
                   </span>
                 {% endif %}
                 {% if recorded.vulnerable %}<span class="pill endpoint-vuln-pill" title="At least one assigned check is marked vulnerable">vulnerable</span>{% endif %}
+                <button type="button" class="copy-icon-btn endpoint-copy-btn" data-copy-text="{{ a.name }}" aria-label="Copy endpoint {{ a.name }}">
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
                 {{ agent_tags(a.focused_by, a.done_by) }}
                 <span class="muted small">{{ recorded.count }}/{{ total }} checks recorded</span>
               </div>
@@ -458,7 +461,7 @@
     });
   })();
   (function () {
-    // Slim assigned-check rows: toggle the observations editor / evidence upload panel.
+    // Slim assigned-check rows: toggle the evidence upload panel.
     function toggler(btnSelector, panelSelector) {
       document.querySelectorAll(btnSelector).forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -473,7 +476,6 @@
         });
       });
     }
-    toggler('.notes-toggle', '.step-notes-editor');
     toggler('.endpoint-check-upload-toggle', '.endpoint-check-upload');
   })();
   (function () {

@@ -441,22 +441,6 @@
       });
     });
 
-    document.querySelectorAll('.check-row-notes-toggle').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var li = btn.closest('li');
-        if (!li) return;
-        var editor = li.querySelector('.check-row-notes-editor');
-        if (!editor) return;
-        var open = !editor.hidden;
-        editor.hidden = open;
-        btn.setAttribute('aria-expanded', String(!open));
-        if (!open) {
-          var ta = editor.querySelector('textarea');
-          if (ta) ta.focus();
-        }
-      });
-    });
-
     document.querySelectorAll('.check-row-ctx-toggle').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var targetId = btn.dataset.target;

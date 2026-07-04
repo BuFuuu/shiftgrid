@@ -18,6 +18,8 @@ Notes (short-term memory for the test): `GET /api/v1/notes` — read first,
 refresh after each step/advance/check/endpoint transition. Use Markdown for them.
 They should provide an overview of the target, vulnerabilities, and workflow observations. However, they should be more than just a log of the test. They should also support important decisions and help resolve issues an agent might encounter during testing. So they have this holistic view of the test which cares about the question what is the risk model the app cares about. They are the central source of information that transcends steps, phases, checks, and tests.
 
+Write findings along the way. Anytime you discover a weakness, report it or change an existing one wtih /api/v1/finding/{finding_id}.
+
 Focus is mandatory, and you focus by setting status to `focused`. You MUST
 claim a workflow step or global checklist check before working on it — recording
 observations, setting a result status, or attaching raw captures on an unfocused

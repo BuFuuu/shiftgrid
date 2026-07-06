@@ -48,6 +48,10 @@ class ProjectService:
         self._repo = repository
         self._project: Project | None = None
         self._host_prefix = host_prefix.rstrip("/\\") if host_prefix else None
+        # Host paths may mix separators (e.g. a Windows USERPROFILE with
+        # backslashes joined to a forward-slash literal). Pick one style for
+        # display: backslash when the host looks like Windows, else forward.
+        self._host_sep = "\\" if (self._host_prefix and "\\" in self._host_prefix) else "/"
         self._container_prefix = str(self.default_base)
 
     def _translate(self, path: str | Path) -> Path:
@@ -91,7 +95,8 @@ class ProjectService:
         """Return folder path translated back to the host-side prefix for display."""
         s = str(folder)
         if self._host_prefix and s.startswith(self._container_prefix):
-            return self._host_prefix + s[len(self._container_prefix):]
+            display = self._host_prefix + s[len(self._container_prefix):]
+            return display.replace("/", self._host_sep).replace("\\", self._host_sep)
         return s
 
     def recent_projects(self) -> list[dict]:

@@ -89,7 +89,7 @@ Guards: `focused` requires a feature group; `tested` requires checks adjusted + 
 2. Any checks not needed or too much? -> Set status to "not applicable" with a observation (observations are mandatory)
 3. POST /api/v1/endpoint/{endpoint_id}/checks-adjusted (confirm step 2. is finished) 
 4. For each endpoint check: do the work now! It's testing time!
-5. PUT /api/v1/check/{check_id}/status and observations with `endpoint_id` set — the response's `next` names the next pending check for this endpoint
+5. PUT /api/v1/check/{check_id}/status and observations with `endpoint_id` set — the response's `next` names the next pending check for this endpoint. To read a single per-endpoint check first, scope it: GET /api/v1/check/{check_id}?endpoint_id=… (returns only this endpoint's result, not the full matrix)
 6. POST /api/v1/endpoint/{endpoint_id}/finish  — marks it tested (same guards as before); its `next` points at the next candidate (a multi-run endpoint resets to todo and returns 409 `run_again` instead of settling; see Runs)
 
 # API Endpoints

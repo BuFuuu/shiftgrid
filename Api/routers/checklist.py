@@ -33,6 +33,7 @@ from .._common import (
     _enforce_notes_update,
     _endpoint_loop_next,
     _guard_observation_overwrite,
+    _scope_item_results,
     _update_notes_hint,
     _read_raw_capture_upload,
     next_step_to_action,
@@ -49,6 +50,11 @@ router = APIRouter()
 
 @router.get("/checklist", response_model=list[ChecklistItem])
 def get_checklist(service: ProjectService = Depends(require_loaded)):
+    """Every check with its FULL result matrix — a per-endpoint check embeds one
+    result per endpoint, so this is the heaviest read in the API and grows with
+    endpoint count. Only call it when you truly need the whole matrix at once.
+    For the catalog use GET /checklist/titles; for one endpoint's results use
+    GET /checklist/filter?endpoint_id=… or GET /check/{check_id}?endpoint_id=…."""
     return service.current.checklist
 
 
@@ -162,15 +168,25 @@ def filter_checklist(
                 statuses = [r.get("status", "pending") for r in results.values()] or ["pending"]
                 if not any(s in status for s in statuses):
                     continue
-        out.append(item)
+        # When the caller named an endpoint, hand back only that endpoint's result
+        # instead of the full per-endpoint matrix.
+        out.append(_scope_item_results(item, endpoint_id) if endpoint_id else item)
     return out
 
 
 @router.get("/check/{check_id}", response_model=ChecklistItem)
-def get_check(check_id: str, service: ProjectService = Depends(require_loaded)):
+def get_check(
+    check_id: str,
+    endpoint_id: str | None = Query(
+        None,
+        description="For a per-endpoint check, scope the result to this endpoint — "
+        "returns only that endpoint's result instead of the full matrix. Ignored for global checks.",
+    ),
+    service: ProjectService = Depends(require_loaded),
+):
     p = service.current
     try:
-        return p.get_check(check_id)
+        return _scope_item_results(p.get_check(check_id), endpoint_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -184,11 +200,14 @@ def put_check_observations(
     p = service.current
     # Read-before-overwrite: refuse to clobber an existing observation unless the
     # agent echoed back the text it last read (see _guard_observation_overwrite).
+    read_path = f"/api/v1/check/{check_id}"
+    if body.endpoint_id:
+        read_path += f"?endpoint_id={body.endpoint_id}"
     _guard_observation_overwrite(
         p.current_check_observations(check_id, endpoint_id=body.endpoint_id),
         body.observations, body.base_observations,
         field=f"check {check_id} observations",
-        read_path=f"/api/v1/check/{check_id}",
+        read_path=read_path,
     )
     r = p.set_check_observations(check_id, body.observations, endpoint_id=body.endpoint_id)
     service.save(p)

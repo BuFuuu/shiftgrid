@@ -95,6 +95,23 @@ def _guard_observation_overwrite(current, new, base, *, field: str, read_path: s
         )
 
 
+def _scope_item_results(item: dict, endpoint_id: str | None) -> dict:
+    """Shallow copy of a checklist item with its `results` dict projected down to
+    the one relevant result: the endpoint's result for a per-endpoint check, or
+    `_global` for a global check. A per-endpoint check needs an `endpoint_id` to
+    scope — without one it is returned untouched (the full matrix). Missing keys
+    yield an empty `results` (nothing tested there yet). Purely a serialization
+    trim, so callers asking about one endpoint don't get all of them."""
+    results = item.get("results") or {}
+    if item.get("scope") == "per_endpoint":
+        if endpoint_id is None:
+            return item
+        scoped = {endpoint_id: results[endpoint_id]} if endpoint_id in results else {}
+    else:
+        scoped = {"_global": results["_global"]} if "_global" in results else {}
+    return {**item, "results": scoped}
+
+
 def _enforce_notes_update(project, notes_old_string, notes_new_string) -> None:
     """When `project.notes_required` is True, apply an Edit-tool-style notes
     update in-line with a finish/done action. No-op when the flag is

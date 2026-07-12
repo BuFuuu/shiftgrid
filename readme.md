@@ -1,20 +1,19 @@
 # Shiftgrid
 
-This is a platform for agentic pentesting with human oversight. A workspAIce, if you want to call it that. Workflows define the agentic flow. Created and controlled by humans. Checklists, state machines, and project notes help keep track of all testing and provide transparency and traceability. It enables testing that go beyond the "just throw more agents at it" mentality, making it highly token-efficient. (This text is typed by actual fingers)
+This is a prompt engine for agentic pentesting with human oversight. You point your agent (or agents) at http://localhost:8001/api/v1/help and from there it knows the scope, follows the prompts and works through the checklists. 
+Test observations, notes.md and a findings list help keep track of all actions and provide transparency and traceability. At any point you can switch agents or continue testing your-self. The shiftgrid is the extended context window. (This text is typed by actual fingers)
 
 Ideas behind this project:
-- Like humans, agents need structure to get stuff done
-- Observations preserve knowledge without bloating agent context windows
-- Workflows + Checklist + Notes + Context Window create a prompt engine / harness, which operators can modify live
-- Agents can work in parallel while seeing the others progress
-- API for Agents : Web UI for humans
-- Displays work process and thoughts of the agents live
-- Pentesting is a searching problem. This benefits from a structured approach
-- Models are smart
-- Workflows can point to specialized agents (reseacher, script developer, domain experts..)
-- Workflows can accoplish all kinds of tasks and have try-harder modes for deep-diving certain phases
-- Checklists prevent missed tests
-- Endpoint list prevent missed scope
+- like humans, agents need structure to get stuff done
+- prompt engine = simple workflow.json (easy to modify)
+- observations preserve knowledge without bloating agent context windows
+- deep dive testing where it matters
+- false positives prevention through evidence checking
+- API for Agents : Web UI for humans -> same backend
+- shows the agents work process live
+- notes page contain the holistic view so agents stay focused
+- simple to extend with other agents (scope control agent or reporter agent)
+- checklists prevent missed tests, endpoint lists prevent missed scope
 
 All in all it comes down to:
 - LLM token stream (thinking) -> ChatGPT (talking) -> Claude Code agent (acting) -> Workflows (working)

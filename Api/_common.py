@@ -320,14 +320,18 @@ def next_step_to_action(next_step, project, workflow) -> NextAction:
 
 def _endpoint_loop_next(project, workflow, endpoint_id: str | None = None) -> NextAction:
     """AI-hint layer for the endpoint loop: decorate the per-endpoint state
-    machine (current_endpoint_testing_step) with the concrete call to make.
-    When the machine has nothing to say for this endpoint (just tested /
-    unfocused), it retries without an id — "focus the next candidate" — and
-    deliberately names no specific endpoint there, so concurrent agents pick
-    from the pool instead of piling onto one. When the machine is silent
-    entirely (no candidates / other phase) it falls back to the workflow
-    resolver, handing the agent back to the outer loop (advance, etc.)."""
-    step = project.current_endpoint_testing_step(endpoint_id)
+    machine with the concrete call to make. A focused endpoint stays workable
+    even outside the endpoint-testing phase, so its own cycle
+    (focused_endpoint_step) is consulted first and holds regardless of
+    current_phase — finish the item you just acted on before the linear workflow
+    reclaims you. With no focused endpoint here it retries without an id — "focus
+    the next candidate", the phase-scoped pool that deliberately names no
+    endpoint so concurrent agents don't pile onto one — and when that too is
+    silent falls back to the workflow resolver, handing the agent back to the
+    outer loop (advance, etc.)."""
+    step = project.focused_endpoint_step(endpoint_id) if endpoint_id is not None else None
+    if step is None:
+        step = project.current_endpoint_testing_step(endpoint_id)
     if step is None and endpoint_id is not None:
         step = project.current_endpoint_testing_step(None)
     if step is None:

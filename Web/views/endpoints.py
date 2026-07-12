@@ -213,6 +213,21 @@ def delete_endpoint(endpoint_id):
     return redirect(url_for("web.endpoints"))
 
 
+@web_bp.post("/project/endpoints/<endpoint_id>/reset")
+@require_loaded
+def reset_endpoint(endpoint_id):
+    s = service()
+    project = s.current
+    return_to = request.form.get("return_to") or url_for("web.endpoints")
+    try:
+        project.reset_endpoint(endpoint_id)
+    except ValueError as e:
+        flash(str(e))
+        return redirect(return_to)
+    s.save(project)
+    return redirect(return_to)
+
+
 @web_bp.post("/project/endpoints/<endpoint_id>/feature-group")
 @require_loaded
 def set_endpoint_feature_group(endpoint_id):

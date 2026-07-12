@@ -145,6 +145,14 @@ class WorkflowMixin:
             if not candidates:
                 return None
             return self._endpoint_testing_step("focus_endpoint")
+        return self.focused_endpoint_step(endpoint_id)
+
+    def focused_endpoint_step(self, endpoint_id: str) -> dict | None:
+        """The next move within one focused endpoint's own cycle (adjust checks ->
+        run each check -> mark tested), derived purely from that endpoint's state.
+        Phase-independent: an endpoint stays workable after the endpoint-testing
+        phase, so its loop holds regardless of current_phase. Returns None unless
+        the endpoint exists and is currently focused."""
         endpoint = self.get_endpoint(endpoint_id)
         if endpoint is None or endpoint.get("status") != "focused":
             return None

@@ -165,6 +165,12 @@
               <button type="button" class="ctx-icon-svg check-row-upload-toggle" aria-label="Upload raw capture" data-tooltip="Upload raw 3rd-party tool output / screenshot / log" data-empty="true" aria-expanded="false">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               </button>
+              <form method="post" action="{{ url_for('web.reset_check', check_id=item.id) }}" class="inline-form">
+                <input type="hidden" name="return_to" value="checklist">
+                <button type="submit" class="ctx-icon-svg reset-btn" data-tooltip="Reset check" aria-label="Reset check" onclick="return confirm('Reset this check? Its status, observations, and evidence will be cleared so it can be worked again.');">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                </button>
+              </form>
               {% if is_finished and r.get('ts') %}
                 <span class="done-at-stamp" title="Finished">
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>

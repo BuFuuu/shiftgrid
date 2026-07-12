@@ -1049,6 +1049,16 @@ main.content.landing-core { max-width: 560px; padding-top: 96px; }
 .endpoint-fsm-row > .endpoint-fsm { flex: 1 1 auto; min-width: 0; margin: 0; }
 .endpoint-fsm-row > .endpoint-delete-form { flex: 0 0 auto; margin: 0; display: flex; }
 .endpoint-fsm-row > .endpoint-delete-form > .btn { height: 100%; }
+.endpoint-fsm-row > .endpoint-reset-form { flex: 0 0 auto; margin: 0; display: flex; }
+.endpoint-fsm-row > .endpoint-reset-form > .btn { height: 100%; }
+
+/* Reset (purge) controls: the same small icon-button shells as their neighbours
+   — the delete button on endpoints, the ctx icons on the checklist — kept grey
+   (--muted) to match them. */
+.btn.reset-btn { color: var(--muted); }
+.btn.reset-btn:hover { color: var(--text); border-color: var(--muted); }
+.ctx-icon-svg.reset-btn { color: var(--muted); }
+.ctx-icon-svg.reset-btn:hover { color: var(--text); border-color: var(--border-2); background: var(--bg-2); }
 
 /* Create panel - bigger, visual accent */
 .finding-create-panel { padding: 24px 28px; }

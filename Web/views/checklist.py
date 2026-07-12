@@ -93,6 +93,21 @@ def finish_check(check_id):
     return redirect(url_for(f"web.{return_to}"))
 
 
+@web_bp.post("/project/checks/<check_id>/reset")
+@require_loaded
+def reset_check(check_id):
+    s = service()
+    project = s.current
+    return_to = request.form.get("return_to", "checklist")
+    try:
+        project.reset_check(check_id)
+    except ValueError as e:
+        flash(str(e))
+        return redirect(url_for(f"web.{return_to}"))
+    s.save(project)
+    return redirect(url_for(f"web.{return_to}"))
+
+
 @web_bp.post("/project/checks/<check_id>/runs")
 @require_loaded
 def set_check_runs(check_id):

@@ -293,6 +293,12 @@
                 </span>
                 <span class="fsm-node s-todo ghost"><span>todo</span></span>
               </div>
+                <form method="post" action="{{ url_for('web.reset_endpoint', endpoint_id=a.id) }}" class="endpoint-reset-form">
+                  <input type="hidden" name="return_to" value="{{ url_for('web.endpoints') }}#endpoint-{{ a.id }}">
+                  <button class="btn icon-btn reset-btn" type="submit" title="Reset endpoint" aria-label="Reset endpoint" onclick="return confirm('Reset this endpoint? Its status, observations, and all check results will be cleared so it can be tested again.');">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                  </button>
+                </form>
                 <form method="post" action="{{ url_for('web.delete_endpoint', endpoint_id=a.id) }}" class="endpoint-delete-form">
                   <button class="btn danger icon-btn" type="submit" title="Delete endpoint" aria-label="Delete endpoint" onclick="return confirm('Delete this endpoint?');">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>

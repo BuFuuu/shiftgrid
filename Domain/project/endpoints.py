@@ -288,6 +288,32 @@ class EndpointsMixin:
                 r["status"] = "pending"
                 r["ts"] = _now()
 
+    def reset_endpoint(self, endpoint_id: str) -> dict:
+        """Purge one endpoint back to a fresh 'todo' so it can be tested again
+        from scratch — from any status, at any point in the workflow. Clears its
+        observations, tested stamp, focus/attribution and check-adjustment, resets
+        the run meter, and empties every per-endpoint check result assigned to it
+        (status, observations, evidence). Unlike _reset_endpoint_checks_for_rerun
+        (the runs-gate loop, which keeps observations) this is a full wipe."""
+        endpoint = self.get_endpoint(endpoint_id)
+        if endpoint is None:
+            raise ValueError(f"unknown endpoint {endpoint_id}")
+        assigned = set(endpoint.get("checks", []))
+        for item in self.checklist:
+            if item.get("scope") != "per_endpoint" or item["id"] not in assigned:
+                continue
+            results = item.get("results")
+            if results and endpoint_id in results:
+                results[endpoint_id] = self._empty_result()
+        endpoint["observations"] = ""
+        endpoint["checks_adjusted"] = False
+        endpoint["runs_completed"] = 0
+        endpoint.pop("focused_by", None)
+        endpoint.pop("done_by", None)
+        endpoint.pop("tested_at", None)
+        self._set_endpoint_status(endpoint, "todo")
+        return endpoint
+
     def endpoint_runs(self, endpoint_id: str) -> "int | str":
         """How many times this endpoint should be tested before it settles —
         a positive int or 'indefinite' (1 = once). Set per-endpoint by the operator."""

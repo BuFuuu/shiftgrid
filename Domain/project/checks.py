@@ -349,6 +349,21 @@ class ChecksMixin:
         r["ts"] = _now()
         return r
 
+    def reset_check(self, check_id: str) -> dict:
+        """Purge a global-scope check back to a fresh 'pending' so it can be
+        worked again from scratch — at any point in the workflow. Clears its
+        result status, observations, evidence, finished/attribution stamps and
+        run meter. Per-endpoint checks are reset via their endpoint instead."""
+        item = self._get_check(check_id)
+        if item.get("scope") != "global":
+            raise ValueError(
+                f"check {check_id} is not a global-scope check; reset a per-endpoint "
+                f"check by resetting its endpoint instead"
+            )
+        results = item.setdefault("results", {})
+        results["_global"] = self._empty_result()
+        return dict(results["_global"])
+
     def recently_worked_global_checks(self, limit: int = 3) -> list[dict]:
         """Finished global-checks ordered by most recently touched (ts desc),
         excluding those currently focused. Drives the workflow-page recent panel."""

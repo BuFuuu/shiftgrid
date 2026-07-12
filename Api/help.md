@@ -29,6 +29,8 @@ what's already in progress, prioritize unassigned work, and avoid duplication. T
 
 Add raw_captures to workflow steps, check and findings when ever a tool produced meaning full output or you want to add evidence like a raw file or a screenshot to your observations. Do not skip this step. It is part of the loops! Never upload information that basically just repeat the observation.
 
+Endpoint lists and checklists stay workable — and resettable — in any phase; the workflow itself stays linear and gated to have a good mix of flexibility and structured work.
+
 **Runs (repeat count).** A phase, global check, or endpoint can be set to run more
 than once for a deeper dive (`runs`: an int, default 1 = once, or `"indefinite"`).
 When you finish a check / mark an endpoint tested / advance a phase that still has

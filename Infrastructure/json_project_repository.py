@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-from Domain import Project, ProjectNotFoundError, _now
+from Domain import Project, ProjectNotFoundError, _now, ensure_builtin_checks
 
 
 class JsonProjectRepository:
@@ -71,6 +71,9 @@ class JsonProjectRepository:
             results = item.get("results")
             if isinstance(results, dict) and "_once" in results and "_global" not in results:
                 results["_global"] = results.pop("_once")
+        # Guarantee the built-in free-testing per-endpoint check exists, so older
+        # projects (and any whose checklist JSON never defined it) still carry it.
+        ensure_builtin_checks(data)
 
     def save(self, project: Project) -> None:
         project.data["updated_at"] = _now()

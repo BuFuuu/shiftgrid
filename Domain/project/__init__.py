@@ -21,6 +21,7 @@ from ._shared import (
     CHECK_RESULT_STATUSES,
     WORKFLOW_STEP_STATUSES,
     EVIDENCE_DIRS,
+    ensure_builtin_checks,
 )
 from .base import ProjectBase
 from .notes import NotesMixin

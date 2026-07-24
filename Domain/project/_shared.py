@@ -267,6 +267,49 @@ FINDINGS_DIR = "findings"
 EVIDENCE_DIRS = (WORKFLOW_DIR, CHECKLIST_DIR, ENDPOINTS_DIR, FINDINGS_DIR)
 
 
+# A per-endpoint check every project carries regardless of its workflow /
+# checklist definition files: free-form testing on the endpoint, driven by the
+# agent on its own initiative. Guaranteed present so a new endpoint always has at
+# least one check assigned, and so it shows in the checklist page's endpoint-checks
+# list even when no per-endpoint checks come from the checklist JSON.
+FREE_TESTING_CHECK_ID = "free_testing"
+
+
+def _free_testing_check() -> dict:
+    return {
+        "id": FREE_TESTING_CHECK_ID,
+        "phase": "checklist",
+        "title": "Free-form testing",
+        "category": "free_testing",
+        "category_name": "Free Testing",
+        "scope": "per_endpoint",
+        "repeatable": False,
+        "runs": 1,
+        "produces_endpoints": False,
+        "description": (
+            "Open-ended testing on this endpoint: probe anything the structured "
+            "checks did not cover — a suspicious parameter, an unusual response, a "
+            "business-logic flow, or a chain of two earlier findings. This is where "
+            "you test on your own initiative. Record what you tried and what came of it."
+        ),
+        "examples": (
+            "Tamper an unexpected parameter and watch the response\n"
+            "Chain a finding from another check against this endpoint\n"
+            "Replay a suspicious request with a modified body in Burp Repeater"
+        ),
+        "results": {},
+    }
+
+
+def ensure_builtin_checks(data: dict) -> None:
+    """Guarantee the built-in checks every project must carry, independent of its
+    workflow/checklist definition files. Currently just the free-testing
+    per-endpoint check. Idempotent — a no-op once the check is present."""
+    checklist = data.setdefault("checklist", [])
+    if not any(isinstance(c, dict) and c.get("id") == FREE_TESTING_CHECK_ID for c in checklist):
+        checklist.append(_free_testing_check())
+
+
 def _now() -> int:
     return int(time.time())
 
@@ -322,6 +365,8 @@ __all__ = [
     'ENDPOINTS_DIR',
     'FINDINGS_DIR',
     'EVIDENCE_DIRS',
+    'FREE_TESTING_CHECK_ID',
+    'ensure_builtin_checks',
     '_now',
     '_safe_name',
 ]

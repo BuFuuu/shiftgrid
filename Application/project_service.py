@@ -12,6 +12,7 @@ from Domain import (
     Checklist,
     NoProjectLoadedError,
     EVIDENCE_DIRS,
+    ensure_builtin_checks,
     _now,
 )
 
@@ -245,6 +246,9 @@ class ProjectService:
             "created_at": _now(),
             "updated_at": _now(),
         }
+        # Add the built-in free-testing per-endpoint check before endpoints are
+        # created, so initial endpoints get it assigned like any per-endpoint check.
+        ensure_builtin_checks(data)
         project = Project(folder, data)
         for a in initial_endpoints or []:
             project.add_endpoint(

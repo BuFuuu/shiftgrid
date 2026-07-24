@@ -21,6 +21,7 @@ from .project import (
     CHECK_RESULT_STATUSES,
     WORKFLOW_STEP_STATUSES,
     EVIDENCE_DIRS,
+    ensure_builtin_checks,
 )
 
 __all__ = [
@@ -47,4 +48,5 @@ __all__ = [
     "CHECK_RESULT_STATUSES",
     "WORKFLOW_STEP_STATUSES",
     "EVIDENCE_DIRS",
+    "ensure_builtin_checks",
 ]

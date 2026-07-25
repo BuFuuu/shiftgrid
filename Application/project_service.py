@@ -57,9 +57,19 @@ class ProjectService:
 
     def _translate(self, path: str | Path) -> Path:
         s = str(path)
-        if self._host_prefix and (s == self._host_prefix or s.startswith(self._host_prefix + "/") or s.startswith(self._host_prefix + "\\")):
-            remainder = s[len(self._host_prefix):].lstrip("/\\")
-            return (Path(self._container_prefix) / remainder) if remainder else Path(self._container_prefix)
+        if self._host_prefix:
+            # Compare on a separator-normalised copy. _host_prefix can carry mixed
+            # separators (e.g. a Windows USERPROFILE with backslashes joined to the
+            # literal "/shiftgrid-projects" in docker-compose -> "C:\Users\me/..."),
+            # while the paths handed back to us have been flattened to a single
+            # separator by _display_path. Matching raw would miss, leaving a Windows
+            # path that Linux's Path.resolve() treats as relative and prefixes with
+            # the container CWD (/app/C:\...). Normalise both to "/" so they line up.
+            norm_s = s.replace("\\", "/")
+            norm_prefix = self._host_prefix.replace("\\", "/")
+            if norm_s == norm_prefix or norm_s.startswith(norm_prefix + "/"):
+                remainder = norm_s[len(norm_prefix):].lstrip("/")
+                return (Path(self._container_prefix) / remainder) if remainder else Path(self._container_prefix)
         return Path(s)
 
     @property

@@ -1,4 +1,4 @@
-# Shiftgrid
+# <img src="Web/static/logo-ot.png" alt="ShiftGrid" height="40" align="middle"> &nbsp;shiftGRID
 
 This is a prompt engine for agentic pentesting with human oversight. You point your agent (or agents) at http://localhost:8001/api/v1/help and from there it knows the scope, follows the prompts and works through the checklists. 
 Test observations, notes.md and a findings list help keep track of all actions and provide transparency and traceability. At any point, you can switch agents or continue testing yourself. The shiftgrid is the extended context window. (This text is typed by actual fingers)

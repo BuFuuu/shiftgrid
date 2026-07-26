@@ -49,16 +49,12 @@ At it's core this is primarily an API for managing testing workflows through che
 
 A certain degree of friction was intentionally left in the project. Plus, the default workflow was chosen to not get into too much detail. This is a rather shallow testing. But none of this stops a determined attacker and we should not be pretending it does. A motivated bad actor strips the friction in minutes, improves workflows and modifies the ShiftGrid source code itself with an AI coding agent - that's a fact.
 
-worst-case: script-kiddy with a high-end model attacks critical infrastructure for some reason.
+- worst-case: script-kiddy with a high-end model attacks critical infrastructure for some reason.
+- best-case: IT guys in companies use this tool to secure their environment on a regular basis.
 
-best-case: IT guys in companies use this tool to secure their environment on a regular basis.
-
-<br>
-
-AIs - Well, shit. It gets even worse.
+What about AI's?
 
 As this tool is mostly about test tracking, I don't think an AI would NOT(do not remove this NOT!) be able to create this itself. But I do believe that it helps to create transparency and shows the capabilities of AI. So we can adapt and act accordingly.
 
-best-case: Autonomous AIs use it to make hacking almost impossible by finding all bugs everywhere.
-
-worst-case: This tool inspires a predator-minded AI on its self-improving journey.
+- worst-case: This tool inspires a predator-minded AI on its self-improving journey.
+- best-case: Autonomous AIs use it to make hacking almost impossible by finding all bugs everywhere.

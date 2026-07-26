@@ -262,39 +262,62 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: 
      sidebar column (16px left edge + 240px track) and centres its logo+name
      inside it, so the brand is centred over the floating sidebar below. Fills
      the phase bar's height and centres vertically on the breadcrumb line. */
-  top: 28px;
+  top: 16px;
   left: 16px;
   width: 240px;
-  height: 66px;
+  height: 104px;
   z-index: 80;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
   color: var(--text);
   pointer-events: none;
 }
+/* The whole logo links home. .brand itself is pointer-events:none (a bare
+   floating mark), so re-enable pointer events on the link only. */
+.brand-link {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  cursor: pointer;
+}
 .brand-logo {
-  width: 64px;
-  height: 64px;
+  /* The logo already carries the ShiftGrid wordmark, so it stands alone,
+     centred over the sidebar column. Sized by height to keep the text legible. */
+  width: auto;
+  height: 104px;
   display: block;
-  object-fit: contain;
 }
-.brand-name {
-  font-family: 'Glass TTY VT220', 'VT323', ui-monospace, Consolas, monospace;
-  font-weight: 400;
-  font-size: 26px;
-  line-height: 1;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text);
-  /* The VT220 ROM glyphs are hairline-thin, so they render faint. Fatten the
-     strokes with a matching outline (plus a hair of glow) so the wordmark reads
-     solid in both themes. */
-  -webkit-text-stroke: 0.6px var(--text);
-  text-shadow: 0 0 0.6px var(--text);
+
+/* ---- header logo: lone blue tile animation ---- */
+/* Default: static. live.js adds .sg-lift to play it once — when a fresh agent
+   update is pulled, or when the operator clicks the tile: wiggle → float up to
+   the sky and vanish → gently float back down and settle on its spot. */
+#sg-blue { transform-box: fill-box; transform-origin: center center; }
+#sg-blue.sg-lift { animation: sg-blue-lift 3.4s 1 both; }
+
+@keyframes sg-blue-lift {
+  /* a slight wiggle in place */
+  0%       { transform: translate(0, 0) rotate(0deg);     opacity: 1; }
+  5%       { transform: translate(0, 0) rotate(-6deg);    opacity: 1; }
+  10%      { transform: translate(0, 0) rotate(6deg);     opacity: 1; }
+  15%      { transform: translate(0, 0) rotate(-4deg);    opacity: 1; }
+  18%      { transform: translate(0, 0) rotate(0deg);     opacity: 1;
+             animation-timing-function: cubic-bezier(.5, 0, .75, .5); }
+  /* lift up to the sky and fade away */
+  40%, 55% { transform: translate(0, -650%) rotate(0deg); opacity: 0;
+             animation-timing-function: steps(1, end); }
+  /* teleport back onto its spot while still invisible... */
+  55.001%  { transform: translate(0, 0) rotate(0deg);     opacity: 0;
+             animation-timing-function: ease-in-out; }
+  /* ...then just slowly fade back in, in place */
+  100%     { transform: translate(0, 0) rotate(0deg);     opacity: 1; }
 }
-@media (max-width: 600px) { .brand-name { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  #sg-blue.sg-lift { animation: none; }
+}
 
 .style-toggle { min-width: 92px; }
 .theme-toggle:hover { color: var(--text); border-color: var(--accent); }
@@ -3452,4 +3475,53 @@ details.endpoint-card {
 }
 .status-tested { background-color: rgba(74,222,128,0.15); color: var(--ok); }
 .status-out_of_scope { background-color: var(--chip); color: var(--muted); opacity: 0.7; }
+
+/* "Update waiting" pill — created by live.js when a fresh live update is held
+   back because the operator is mid-hover / editing. Bottom-left; the other
+   corners carry the brand, theme toggles, and the next-action button. Hidden
+   until live.js adds .is-visible. Click (or just move the mouse to it) loads. */
+.update-waiting {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+.update-waiting.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.update-waiting:hover { border-color: var(--border-2); }
+.update-waiting-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: update-waiting-pulse 1.6s ease-out infinite;
+}
+@keyframes update-waiting-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(28,156,236,0.5); }
+  70%  { box-shadow: 0 0 0 6px rgba(28,156,236,0); }
+  100% { box-shadow: 0 0 0 0 rgba(28,156,236,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .update-waiting { transition: none; }
+  .update-waiting-dot { animation: none; }
+}
 

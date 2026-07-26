@@ -38,11 +38,16 @@
   window.addEventListener('pagehide', saveScroll);
 
   // ---- live updates via cheap polling ----
-  // Every 1s, fetch the project's updated_at. If it has advanced, reload —
-  // unless the user is typing in a form, in which case defer until blur.
-  var POLL_MS = 1000;
+  // Twice a second, fetch the project's updated_at. If it has advanced, reload —
+  // unless the user is typing in a form or reading a tooltip, in which case
+  // defer until they're idle again.
+  var POLL_MS = 500;
   var lastSeen = null;
   var pendingReload = false;
+  // Set true while a rich tooltip is on screen (see installRichTooltips). A
+  // reload mid-hover would tear out the element under the cursor and drop the
+  // tooltip, forcing the operator to re-hover — so we treat it as "busy".
+  var tooltipVisible = false;
 
   function isEditing() {
     var el = document.activeElement;
@@ -59,16 +64,101 @@
     return !!document.querySelector('[aria-expanded="true"]');
   }
 
-  function isBusy() { return isEditing() || hasOpenPanel(); }
+  function isBusy() { return isEditing() || hasOpenPanel() || tooltipVisible; }
+
+  // "Update waiting" pill: a quiet, non-blocking cue that a fresh update is being
+  // held back because the operator is busy (reading a tooltip, editing, a panel
+  // open). Without it, a parked mouse looks like nothing is happening. Clicking
+  // loads now — though moving the mouse toward it already un-hovers the item and
+  // lets the deferred update through. Created lazily so it's safe before <body>.
+  var waitingBadge = null;
+  function showWaitingBadge() {
+    if (!waitingBadge) {
+      if (!document.body) return;
+      waitingBadge = document.createElement('button');
+      waitingBadge.type = 'button';
+      waitingBadge.className = 'update-waiting';
+      waitingBadge.innerHTML =
+        '<span class="update-waiting-dot" aria-hidden="true"></span><span>Update waiting</span>';
+      waitingBadge.addEventListener('click', function () {
+        pendingReload = false;
+        performReload();
+      });
+      document.body.appendChild(waitingBadge);
+    }
+    waitingBadge.classList.add('is-visible');
+  }
+  function hideWaitingBadge() {
+    if (waitingBadge) waitingBadge.classList.remove('is-visible');
+  }
 
   function performReload() {
     if (isBusy()) {
       pendingReload = true;
+      showWaitingBadge();
       return;
     }
+    hideWaitingBadge();
     saveScroll();
+    // Mark this reload as agent-update-driven so the fresh page can play the
+    // logo roll-off once (see maybeRollLogo). Manual navigation never sets this.
+    try { sessionStorage.setItem('sg:rollOnLoad', '1'); } catch (e) { /* ignore */ }
     window.location.reload();
   }
+
+  // ---- header logo: the lone blue tile ----
+  // #sg-blue is the blue tile inside the inlined header logo. It plays one
+  // one-shot animation (.sg-lift: wiggle → float to the sky → glide back onto
+  // its spot), driven by toggling a CSS class. Triggered when a fresh agent
+  // update is pulled, and when the operator clicks the tile.
+  var ROLL_MIN_GAP_MS = 40000;
+
+  function blueTile() { return document.getElementById('sg-blue'); }
+
+  function playLift() {
+    var b = blueTile();
+    if (!b) return;
+    // Restart cleanly even if it's already animating.
+    b.classList.remove('sg-lift');
+    void b.getBoundingClientRect(); // force reflow so the animation replays
+    b.classList.add('sg-lift');
+    b.addEventListener('animationend', function () {
+      b.classList.remove('sg-lift');
+    }, { once: true });
+  }
+
+  // Play the lift once if this page loaded as the result of an agent update,
+  // rate-limited to once per 40s so a burst of updates doesn't spin it constantly.
+  function maybeLiftLogo() {
+    var flagged = null;
+    try { flagged = sessionStorage.getItem('sg:rollOnLoad'); } catch (e) { /* ignore */ }
+    if (!flagged) return;
+    try { sessionStorage.removeItem('sg:rollOnLoad'); } catch (e) { /* ignore */ }
+
+    var now = Date.now();
+    var last = 0;
+    try { last = parseInt(localStorage.getItem('sg:lastRoll'), 10) || 0; } catch (e) { /* ignore */ }
+    if (now - last < ROLL_MIN_GAP_MS) return;
+
+    try { localStorage.setItem('sg:lastRoll', String(now)); } catch (e) { /* ignore */ }
+    playLift();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', maybeLiftLogo);
+  } else {
+    maybeLiftLogo();
+  }
+
+  // Clicking the blue tile only plays the animation — it must NOT follow the
+  // logo's link. Every other part of the logo is a plain <a href="/"> and still
+  // navigates home.
+  document.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest && e.target.closest('#sg-blue');
+    if (!b) return;
+    e.preventDefault();   // don't navigate
+    e.stopPropagation();
+    playLift();
+  });
 
   document.addEventListener('focusout', function () {
     if (!pendingReload) return;
@@ -149,6 +239,7 @@
       var text = el.getAttribute('data-tooltip');
       if (!text) return;
       clearTimeout(hideTimer);
+      tooltipVisible = true;
       tip.innerHTML = formatTooltip(text);
       tip.style.left = '-9999px';
       tip.style.top = '0px';
@@ -166,7 +257,13 @@
     }
     function hide() {
       clearTimeout(hideTimer);
-      hideTimer = setTimeout(function () { tip.setAttribute('data-visible', 'false'); }, 60);
+      hideTimer = setTimeout(function () {
+        tip.setAttribute('data-visible', 'false');
+        tooltipVisible = false;
+        // A reload deferred while the tooltip was up can run now the operator has
+        // looked away — don't make them wait for the next poll tick.
+        if (pendingReload && !isBusy()) { pendingReload = false; performReload(); }
+      }, 60);
     }
     function handle(e, fn) {
       var el = e.target && e.target.closest && e.target.closest('[data-tooltip]');

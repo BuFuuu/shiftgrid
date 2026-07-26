@@ -1,7 +1,7 @@
 # <img src="Web/static/logo-ot.png" alt="ShiftGrid" height="44" align="texttop"> &nbsp;shiftGRID
 
 An open-source **prompt engine** for agentic pentesting with human oversight. You point your agent (or agents) at shiftGrid's API and from there it knows the scope, follows the prompts and works through the checklists. 
-Test observations, notes.md and a findings list help keep track of all actions and provide transparency and traceability. At any point, you can switch agents or continue testing yourself. The shiftgrid is the extended context window. (This text is typed by actual fingers)
+Test observations, notes.md and a findings list help keep track of all actions and provide transparency and traceability. At any point, you can switch agents or continue testing yourself. The shiftGrid is the extended context window. *(This text is typed by actual fingers)*
 
 Ideas behind this project:
 - like humans, agents need structure to get stuff done
@@ -35,7 +35,7 @@ The tool is independent of the workflows, checklists, agents, and models you use
 1. git clone https://github.com/BuFuuu/shiftgrid
 2. Docker compose up --build
 3. Create a project at localhost:8000
-4. Point your agent(s) (claude, pi, ..) to it: "Do the work on the ShiftGrid at http://localhost:8001/api/v1/help"
+4. Point your agent(s) (claude, pi, ..) to it: "Do the work on the shiftGrid at http://localhost:8001/api/v1/help"
 
 
 # Security model

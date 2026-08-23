@@ -29,7 +29,7 @@ The tool is independent of the workflows, checklists, agents, and models you use
     <img src="demo.gif" width="800">
   </a>
 </p>
-
+[ShiftGrid Demo on X](https://x.com/_shiftgrid/status/2083610857854931267)
 # Installation
 
 1. git clone https://github.com/BuFuuu/shiftgrid

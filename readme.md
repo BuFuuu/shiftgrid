@@ -35,9 +35,22 @@ The tool is independent of the workflows, checklists, agents, and models you use
 # Installation
 
 1. git clone https://github.com/BuFuuu/shiftgrid
-2. Docker compose up --build
-3. Create a project at localhost:8000
-4. Point your agent(s) (claude, pi, ..) to it: "Do the work on the shiftGrid at http://localhost:8001/api/v1/help"
+2. docker compose up --build
+3. create a project at localhost:8000
+4. point your agent(s) (claude, pi, ..) to it: "Do the work on the shiftGrid at http://localhost:8001/api/v1/help"
+
+
+**Installation (without Docker)**
+
+ShiftGrid is a plain Python app — no database, no external services, just the few dependencies listed in requirements.txt. So you can skip Docker entirely: make a venv, install the requirements, and run it.
+
+1. git clone https://github.com/BuFuuu/shiftgrid
+2. cd shiftgrid; python -m venv .venv
+3. activate the venv. Windows: `.venv\Scripts\activate` / macOS/Linux: `source .venv/bin/activate`
+4. pip install -r requirements.txt
+5. start it. Windows: `$env:HOST="127.0.0.1"; python app.py` / macOS/Linux: `HOST=127.0.0.1 python app.py`
+
+**Without Docker you lose the container isolation**, so you MUST start it with `HOST=127.0.0.1`. There is no login or authentication — if you bind it to anything else, the whole network can open it and read your pentest details.
 
 
 # Security model

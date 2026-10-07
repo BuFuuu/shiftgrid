@@ -69,6 +69,12 @@ def _workflow_options(s):
     return options
 
 
+def _checklist_options(s):
+    """Checklist choices for the new-project picker, so the operator can pick a
+    checklist independently of the workflow's default."""
+    return [{"id": cl.id, "name": cl.name} for cl in s.checklists.values()]
+
+
 @web_bp.get("/project/heartbeat")
 def heartbeat():
     """Cheap JSON endpoint polled by live.js to detect project changes.
@@ -89,6 +95,7 @@ def landing():
     return render_template(
         "landing.html",
         workflows=_workflow_options(s),
+        checklists=_checklist_options(s),
         default_path=current_app.config.get("DEFAULT_PROJECTS_DIR", ""),
         recent_projects=s.recent_projects(),
     )
@@ -100,6 +107,7 @@ def create():
     return_to_projects = s.is_loaded
     name = request.form.get("name", "").strip()
     wf = request.form.get("workflow", "").strip()
+    checklist = request.form.get("checklist", "").strip() or None
     scope_raw = request.form.get("scope", "")
     endpoints_raw = request.form.get("endpoints", "")
     base_path = request.form.get("path", "").strip() or None
@@ -109,7 +117,7 @@ def create():
     scope = [s.strip() for s in scope_raw.splitlines() if s.strip()]
     endpoints = [{"name": s.strip()} for s in endpoints_raw.splitlines() if s.strip()]
     try:
-        s.create(name=name, workflow_id=wf, scope=scope, initial_endpoints=endpoints, base_path=base_path)
+        s.create(name=name, workflow_id=wf, scope=scope, initial_endpoints=endpoints, base_path=base_path, checklist_id=checklist)
     except ValueError as e:
         flash(str(e))
         return redirect(url_for(_projects_view() if return_to_projects else "web.landing"))

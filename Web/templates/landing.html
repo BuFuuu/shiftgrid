@@ -9,7 +9,22 @@
   <section class="panel landing-core-card">
     <form method="post" action="{{ url_for('web.create') }}" class="form">
       <input type="hidden" name="name" value="temporary project">
-      <input type="hidden" name="workflow" value="{{ workflows[0].id if workflows else 'example' }}">
+      <label>
+        <span>Workflow</span>
+        <select name="workflow" required>
+          {% for wf in workflows %}
+            <option value="{{ wf.id }}">{{ wf.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>Checklist</span>
+        <select name="checklist" required>
+          {% for cl in checklists %}
+            <option value="{{ cl.id }}">{{ cl.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
       <label>
         <span>Scope <em class="muted">(one per line)</em></span>
         <textarea name="scope" rows="4" placeholder="example.com&#10;10.0.0.0/24" required></textarea>

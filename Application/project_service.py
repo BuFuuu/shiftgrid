@@ -201,11 +201,19 @@ class ProjectService:
         scope: list[str],
         initial_endpoints: list[dict] | None = None,
         base_path: str | Path | None = None,
+        checklist_id: str | None = None,
     ) -> Project:
         wf = self.workflows.get(workflow_id)
         if wf is None:
             raise ValueError(f"unknown workflow {workflow_id}")
-        cl = self.checklist_for(wf)
+        # The operator may pick a checklist independently of the workflow's
+        # default; fall back to the workflow's checklist when none is chosen.
+        if checklist_id:
+            cl = self.checklists.get(checklist_id)
+            if cl is None:
+                raise ValueError(f"unknown checklist {checklist_id}")
+        else:
+            cl = self.checklist_for(wf)
         base = self._translate(base_path).expanduser().resolve() if base_path else self.default_base
         base.mkdir(parents=True, exist_ok=True)
         slug = _slug(name)

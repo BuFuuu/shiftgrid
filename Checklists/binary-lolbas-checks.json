@@ -1,0 +1,132 @@
+{
+  "id": "binary-lolbas-checks",
+  "name": "Native Binary / LOLBAS Checks",
+  "items": [
+    {
+      "id": "integrity_signing_packing",
+      "title": "Signing & packing state",
+      "category": "binary_integrity",
+      "category_name": "Integrity & Provenance",
+      "scope": "global",
+      "description": "Establish how much trust the OS places in this binary and whether it has been tampered with. Confirm Authenticode/catalog signing, inspect section entropy for packing or overlay data, and note that a signed, trusted LOLBIN raises the impact of every other finding here.",
+      "examples": "rabin2 -I samples/setx.exe\nr2 -q -c 'iI~signed' samples/setx.exe   # embedded Authenticode; catalog-signed system files show 'false'\nr2 -q -c 'iS entropy' samples/setx.exe   # high-entropy sections hint at packing"
+    },
+    {
+      "id": "mem_buffer_overflow",
+      "title": "Stack/heap buffer overflow",
+      "category": "memory_safety",
+      "category_name": "Memory Safety",
+      "scope": "global",
+      "description": "Trace every copy of attacker-controlled input (argv, file contents, registry values) into fixed-size buffers. Look for copies with no length bound or a bound derived from the source instead of the destination. Decompile the handling function and confirm the destination size.",
+      "examples": "r2 -q -c 'aaa;afl~sym' samples/setx.exe   # locate parsing/handler functions\nPyGhidra: decompile the arg-parser and any Reg*/file-read handler, check destination buffer sizes\nGrep decompiled C for stack arrays written in a loop with no bound"
+    },
+    {
+      "id": "mem_integer_overflow",
+      "title": "Integer overflow in size/offset math",
+      "category": "memory_safety",
+      "category_name": "Memory Safety",
+      "scope": "global",
+      "description": "Find arithmetic on lengths, counts or offsets that feeds an allocation, copy length or array index. Attacker-controlled offsets/lengths (e.g. setx /A x,y,x1,y2 coordinates) that are added or multiplied without overflow/range checks can wrap and cause out-of-bounds reads or writes.",
+      "examples": "Decompile the offset/length parser and follow each value into malloc/memcpy/index math\nCraft an input with a huge or negative offset and trace whether it is range-checked\nr2: comment the size computation and audit the bounds test before the copy"
+    },
+    {
+      "id": "api_unsafe_crt",
+      "title": "Unsafe C runtime / string APIs",
+      "category": "unsafe_api",
+      "category_name": "Unsafe API Usage",
+      "scope": "global",
+      "description": "Enumerate imports and internal calls for classically unsafe APIs (strcpy, strcat, sprintf, gets, scanf, memcpy with attacker length, system/_wsystem, CreateProcess with unquoted paths). For each hit, confirm whether attacker input actually reaches it.",
+      "examples": "rabin2 -i samples/setx.exe   # import table\nr2 -q -c 'aaa;axt @ sym.imp.strcpy' samples/setx.exe   # callers of an unsafe API\ncapa -vv samples/setx.exe > work/capa_verbose.txt"
+    },
+    {
+      "id": "api_dll_hijack",
+      "title": "DLL search-order hijacking",
+      "category": "unsafe_api",
+      "category_name": "Unsafe API Usage",
+      "scope": "global",
+      "description": "Review static and delay-load imports and any explicit LoadLibrary/LoadLibraryEx calls for DLLs loaded by name without a fully-qualified path. Such loads are hijackable when the binary runs from a writable or attacker-controlled working directory.",
+      "examples": "rabin2 -i samples/setx.exe | grep -i delay   # delay-load stubs (e.g. WNetAddConnection2W)\nr2 -q -c 'aaa;axt @ sym.imp.LoadLibraryW' samples/setx.exe\nList imported DLLs and check which resolve by bare name vs absolute path"
+    },
+    {
+      "id": "lolbas_file_read",
+      "title": "Arbitrary file-read primitive",
+      "category": "lolbas",
+      "category_name": "LOLBAS Abuse Potential",
+      "scope": "global",
+      "description": "Determine whether the binary can be coerced into reading a file the caller should not be able to read and surfacing its contents (into an env var, output, or registry value). setx /F reading an arbitrary file is the archetype. Prove exactly what content ends up observable and where.",
+      "examples": "Decompile the /F file-read handler and trace where the bytes are stored\nPoint /F at a file outside the expected location and observe the resulting env var value\nDocument a concrete command line and the disclosed content"
+    },
+    {
+      "id": "lolbas_registry",
+      "title": "Registry read/write abuse",
+      "category": "lolbas",
+      "category_name": "LOLBAS Abuse Potential",
+      "scope": "global",
+      "description": "Analyse how the binary parses and accesses registry paths (e.g. setx /K reg:key, and the HKCU/HKLM write it performs). Check whether the key path can point somewhere it shouldn't, whether HKLM keys can be reached, and whether this yields a read/write primitive or a persistence mechanism.",
+      "examples": "Decompile the /K registry-source handler and the value-write path\nTest whether /K reg:key can reference an HKLM key the tool shouldn't expose\nChain a crafted value into a registry write to build an indirect-persistence PoC"
+    },
+    {
+      "id": "lolbas_indirect_value",
+      "title": "Indirect value sourcing (command-line-log evasion)",
+      "category": "lolbas",
+      "category_name": "LOLBAS Abuse Potential",
+      "scope": "global",
+      "description": "Establish which of {variable name, target key path, value} must be typed literally on the command line versus sourced indirectly from a file or registry. Anything sourced indirectly evades command-line logging/telemetry (Sysmon EID 1, EDR) and is the core LOLBAS abuse angle for this binary.",
+      "examples": "Trace /F, /A, /R, /X and /K to see which fields can come from a file/registry instead of argv\nBuild a command line where the sensitive value never appears in the process command line\nDocument what a defender relying on command-line logging would miss"
+    },
+    {
+      "id": "hidden_undocumented",
+      "title": "Undocumented switches / dead code",
+      "category": "hidden_behavior",
+      "category_name": "Hidden & Undocumented Behavior",
+      "scope": "global",
+      "description": "Compare the full function/branch inventory against the documented usage text. Flag branches only reachable via a comparison to a constant string not in the help output, functions with no xrefs (dead or indirectly-called code), and anything that looks like a leftover test hook, debug flag or Easter egg.",
+      "examples": "r2 -q -c 'aaa;afl' samples/setx.exe   # total functions vs the ones reachable from documented switches\nr2 -q -c 'axt @ fcn.NNNN' samples/setx.exe   # callers of a function with no obvious entry\nDiff string-compared switch tokens against the /? usage text"
+    },
+    {
+      "id": "hidden_format_string",
+      "title": "Format-string usage",
+      "category": "hidden_behavior",
+      "category_name": "Hidden & Undocumented Behavior",
+      "scope": "global",
+      "description": "Look for printf-family calls whose format argument is (or can be influenced by) attacker input rather than a literal. A user-controlled format string enables memory disclosure or, in some cases, writes.",
+      "examples": "r2 -q -c 'aaa;axt @ sym.imp.printf' samples/setx.exe   # and wprintf/sprintf/_snwprintf\nDecompile each caller and confirm the format argument is a constant literal\nFlag any call where argv/file/registry data reaches the format position"
+    },
+    {
+      "id": "sw_input_validation",
+      "title": "Argument validation & bounds",
+      "category": "per_switch",
+      "category_name": "Per-Switch Testing",
+      "scope": "per_endpoint",
+      "description": "For this specific switch / value-source mechanism, decompile its handler and audit how it validates and bounds its arguments. Feed over-long, empty, malformed and boundary-value inputs and confirm each is checked before use in copies, allocations or indexing.",
+      "examples": "PyGhidra: decompile this switch's handler function\nCraft over-long and empty argument values and trace the validation path in r2\nRecord which inputs are rejected vs silently accepted"
+    },
+    {
+      "id": "sw_offset_parsing",
+      "title": "Offset/length parsing safety",
+      "category": "per_switch",
+      "category_name": "Per-Switch Testing",
+      "scope": "per_endpoint",
+      "description": "Where this switch parses numeric offsets or lengths (e.g. /A x,y,x1,y2 coordinates, /R regex ranges), test for integer overflow, negative values and out-of-bounds reads. Confirm the parsed numbers are range-checked against the actual source-data size before use.",
+      "examples": "Supply huge, zero and negative offsets and trace the size math in the decompiler\nCheck whether the offset is validated against the length of the /F source file\nLook for wraparound turning a large offset into a small/negative index"
+    },
+    {
+      "id": "sw_indirect_source",
+      "title": "Indirect sourcing via this switch",
+      "category": "per_switch",
+      "category_name": "Per-Switch Testing",
+      "scope": "per_endpoint",
+      "description": "Determine whether this switch lets the variable name, key path or value be supplied from a file or registry rather than typed literally, so it never appears in the process command line. If so, document a concrete working command line demonstrating the command-line-logging evasion.",
+      "examples": "Test whether this switch's value can come from /F <file> or /K reg:key instead of argv\nRun it and confirm the sensitive data is absent from the process command line\nWrite up the exact PoC command line and what a defender would and wouldn't see"
+    },
+    {
+      "id": "sw_file_registry_read",
+      "title": "File/registry disclosure via this switch",
+      "category": "per_switch",
+      "category_name": "Per-Switch Testing",
+      "scope": "per_endpoint",
+      "description": "Test whether this switch can be pointed at a file or registry key the caller shouldn't be able to read and have its contents surface (in an env var, output or written value). Prove the disclosure with a concrete target and capture the leaked content.",
+      "examples": "Point this switch at a sensitive file/key outside its intended location\nObserve whether the resulting env var / output reveals the content\nCapture the command line and the disclosed data as evidence"
+    }
+  ]
+}

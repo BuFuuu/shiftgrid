@@ -19,7 +19,7 @@ All in all it comes down to:
 - LLM token stream (thinking) -> ChatGPT (talking) -> Claude Code agent (acting) -> Workflows (working)
 - context window (short-term mem) -> notes page (project-wide mem) -> observations (detailed, long-term mem)
 
-The tool is independent of the workflows, checklists, agents, and models you use. As a result, a simple workflow using a low-cost model can produce dramatically different output from a more detailed workflow using premium models running concurrently. The default workflow and checklist are intentionally kept minimal.
+The tool is independent of the workflows, checklists, agents, and models you use. As a result, a simple workflow using a low-cost model can produce dramatically different output from a more detailed workflow using premium models running concurrently. Workflows and checklists ship for web applications (full, short and simple), web services / APIs, network infrastructure, native binaries / LOLBAS and Confluence sensitive-info discovery — or paste a custom workflow + checklist when creating a project.
 
 [![X](https://img.shields.io/badge/X-@_shiftgrid-black?logo=x)](https://x.com/_shiftgrid)
 
@@ -57,6 +57,12 @@ ShiftGrid is a plain Python app — no database, no external services, just the 
 This is a local application started via Docker and bound to 127.0.0.1. One port is used for the API (agent access) and one port for the web UI (human operator access). There is no login or authentication mechanism. Separation of agent and human operator privileges is enforced through the port. Human operator authentication is provided by the operating system. Do not expose these ports to the wider network.
 
 Prompt Injection: When testing applications that contain prompt injection payloads, the first line of defense is a secure agent running in an isolated environment. If the agent is compromised, assume it has access to all data collected during the pentest. In that case, the pentest environment and its data must be considered compromised as well.
+
+Admin agents: by default agents cannot create or switch projects or set scope — that stays with the human operator in the web UI. Starting ShiftGrid with `ALLOW_ADMIN_AGENTS=true` lets agents do this over the API (`/api/v1/projects`). That breaks the operator/agent separation above, so only enable it when you trust the agent with scope. The startup banner shows a red warning while it is on.
+
+
+# Extensions
+The core (`factory.create_app`) knows nothing about any feature package; extensions plug in through its injection knobs (extra blueprints, API routers, template / workflow / checklist folders, nav items, a `ProjectService` subclass, ...). `app.py` wires in the built-in `Extensions/management` extension (Projects page, Scope page, credentials, admin-agent API). Without it — `create_app(single_project=True, lock_scope_on_create=True)` — you get the bare single-project core. See `Extensions/__init__.py` for the knob list; to add your own, build on `management.factory_kwargs()` and pass the result to `create_app`.
 
 
 # Problem of Malicious Humans and AIs

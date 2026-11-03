@@ -1,0 +1,157 @@
+{
+  "id": "web_application",
+  "name": "Web Application",
+  "common": true,
+  "color": "#3b82f6",
+  "checklist": "web_application",
+  "phases": [
+    {
+      "id": "scope_definition",
+      "icon": "<circle cx=\"12\" cy=\"12\" r=\"8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><circle cx=\"12\" cy=\"12\" r=\"3\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M12 1v4M12 19v4M1 12h4M19 12h4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Scope, Context & Credentials",
+      "description": "The operator adds what is already known before the engagement starts: scope, context and credentials. Only the operator can advance this phase.",
+      "human_advance": true,
+      "steps": [
+        {"check": "set_boundaries", "title": "Set the Boundaries", "description": "Record the in-scope hosts, ports and paths, plus everything that is explicitly out of scope (third-party services, production data, destructive tests, rate limits, testing windows). Later steps treat this as the hard limit.", "examples": "Scope: app.example.com, api.example.com\nOut of scope: sso.example.com (third party), no DoS, max 10 req/s"},
+        {"check": "supply_information", "title": "Supply Context & Credentials", "description": "Add what the client told you: what the application does, who uses it, which roles exist, known weak spots and the test credentials for every role. Missing credentials limit the authenticated testing later on.", "examples": "Roles: user, manager, admin -- one test account each\nContext: B2B invoicing portal, tenants must never see each other's data"}
+      ]
+    },
+    {
+      "id": "reachability",
+      "icon": "<path d=\"M5 12.5a10 10 0 0 1 14 0M8 16a6 6 0 0 1 8 0\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\"/><circle cx=\"12\" cy=\"19\" r=\"1.5\" fill=\"currentColor\"/>",
+      "name": "Reachability & Authentication",
+      "description": "Confirm the target is there, see what is exposed and make sure every role can log in before spending time on recon.",
+      "steps": [
+        {"check": "verify_reachable", "title": "Confirm Target Reachability", "description": "Confirm the in-scope target is up and responding before testing. Resolve its DNS and send a basic request to each known host and port. Record what answers and what does not. If it is not reachable do not continue this workflow / test.", "examples": "dig +short target.com\nping -c 2 target.com\ncurl -skI https://target.com"},
+        {"check": "quick_port_scan", "title": "Quick Port Scan (nmap -F)", "description": "Run a fast top-ports scan to see which services are exposed. Use it to confirm the web ports and to spot anything unexpected before deeper recon.", "examples": "nmap -Pn -F target.com\nnmap -Pn -F -sV target.com   # add versions on the open ports"},
+        {"check": "http_reachability", "title": "HTTP(S) on Every Open Port", "description": "Send an HTTP and an HTTPS request to every open port from the port scan. Note which ports speak HTTP, the redirects, the server banners and the TLS versions offered. Web services on unusual ports are easy to miss later.", "examples": "for p in 80 443 8080 8443; do curl -skI --max-time 5 https://target.com:$p; curl -sI --max-time 5 http://target.com:$p; done\nhttpx -l hosts.txt -ports 80,443,8080,8443 -title -tech-detect -status-code"},
+        {"check": "role_authentication", "title": "Log In With Every Role", "description": "Log in once with every supplied role using Playwright and save a working session (cookies / tokens) per role. Note how authentication works: login form, SSO, API token, MFA. Report any role that cannot log in -- authenticated testing depends on it.", "examples": "Playwright: open /login, sign in as each role, save storage_state to role-<name>.json\ncurl -s https://target.com/api/me -H 'Cookie: <session>'  # confirm the session works"}
+      ]
+    },
+    {
+      "id": "initial_recon",
+      "icon": "<circle cx=\"11\" cy=\"11\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M20 20l-4-4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Initial Recon",
+      "description": "Quick, passive-leaning enumeration to understand the app before going in with scans. Add anything you find as endpoints via /api/v1/endpoint/.. so later phases have full coverage.",
+      "steps": [
+        {"check": "understand_target", "title": "Understand the Target", "description": "Browse the app with every role, read the landing pages and identify the tech stack, the roles and the main features. Build a clear mental model of what the application actually does before scanning it.", "examples": "whatweb https://target.com\ncurl -s https://target.com | grep -i 'generator\\|powered'\nBrowse the app in Playwright and note the main features."},
+        {"check": "check_tls_certificate_names", "title": "Certificate Names", "description": "Read the TLS certificate of every HTTPS port and certificate-transparency logs. Subject and SAN names often reveal more hosts, staging systems or internal names. Only add hosts that are in scope; note the rest.", "examples": "openssl s_client -connect target.com:443 -servername target.com </dev/null 2>/dev/null | openssl x509 -noout -ext subjectAltName\ncurl -s 'https://crt.sh/?q=%25.target.com&output=json' | jq -r '.[].name_value' | sort -u"},
+        {"check": "check_robots_and_sitemap", "title": "robots.txt & Sitemaps", "description": "Read robots.txt, sitemap.xml and other well-known files. Disallowed paths are often the interesting ones. At the end, add any found endpoints through /api/v1/endpoint/..", "examples": "curl -s https://target.com/robots.txt\ncurl -s https://target.com/sitemap.xml\ncurl -s https://target.com/.well-known/security.txt"},
+        {"check": "check_html_source_code", "title": "HTML Source", "description": "Read the HTML source of the main pages for every role: comments, hidden fields, disabled features, API base URLs, debug flags. At the end, add any found endpoints through /api/v1/endpoint/..", "examples": "curl -s https://target.com | grep -iE '<!--|hidden|api|debug|todo'"},
+        {"check": "analyze_javascript", "title": "Analyse the App's JavaScript", "repeatable": true, "description": "Have a look at the application's own JavaScript (not frameworks like jQuery or Angular). Extract API routes, parameters, feature flags, role checks done in the client and hard-coded secrets. At the end, add any found endpoints through /api/v1/endpoint/..", "examples": "Download the bundles, pretty-print them, then grep for '/api/', 'fetch(', 'axios', 'token', 'role'\nCheck for source maps: curl -sI https://target.com/static/main.js.map"},
+        {"check": "do_web_research_of_target", "title": "Research the Target Online", "description": "Search the web for the product, vendor and domain: documentation, public API references, GitHub repositories, old URLs in archives, past security reports. At the end, add any found endpoints through /api/v1/endpoint/..", "examples": "site:target.com inurl:api\ncurl -s 'http://web.archive.org/cdx/search/cdx?url=target.com/*&fl=original&collapse=urlkey'"}
+      ]
+    },
+    {
+      "id": "recon",
+      "icon": "<path d=\"M3 7l9-4 9 4-9 4-9-4z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M3 12l9 4 9-4M3 17l9 4 9-4\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linejoin=\"round\"/>",
+      "name": "Full Recon with Roles",
+      "description": "The time-consuming recon: large content discovery per role, subdomains and every TCP port. Find what the app does not link to.",
+      "steps": [
+        {"check": "scanning_baseline", "title": "Baseline Responses & Rate Limiting", "description": "Capture the app's true 'not found' response and other edge-case signatures (auth-required, redirect, error) so scan output can be filtered. Compare slow vs fast bursts to detect rate limiting / WAF throttling. Research likely endpoints for the platforms/frameworks identified in earlier recon.", "examples": "curl -sk -o /dev/null -w '%{http_code} %{size_download}\\n' https://target.com/does-not-exist-$RANDOM\nSend 50 quick requests and compare status codes and timing to 50 slow ones."},
+        {"check": "scanning_plan", "title": "Build the Scanning Plan", "description": "Combine prior recon into a concrete scan plan. Decide: wordlist(s), target ports/hosts, paths, parameters, HTTP headers, cookies/auth per role, request rate, recursion depth, file extensions, and the order of what to scan when.", "examples": "Wordlists: SecLists raft-medium-directories (30k) + framework-specific list\nPer role: user, admin cookies from role-<name>.json\nRate: 20 req/s (no throttling seen in baseline)"},
+        {"check": "small_test_scan", "title": "Test the Scanning Plan", "description": "Verify the plan with a small scan using a tiny wordlist. Check that the filters drop the baseline and that sessions stay valid. Adjust the plan afterwards if needed.", "examples": "ffuf -u https://target.com/FUZZ -w tiny.txt -fs <baseline size> -mc all"},
+        {"check": "ffuf_unauthenticated", "title": "Unauthenticated Discovery Scans", "repeatable": true, "description": "Execute the plan unauthenticated to map the app's public exposure. Filter against the baseline. Wordlist >= 20k entries. Do not scan more than 1 file extension at a time. At the end, add your endpoints through /api/v1/endpoint/..", "examples": "ffuf -u https://target.com/FUZZ -w raft-medium-directories.txt -fs <baseline size> -o unauth.json"},
+        {"check": "ffuf_authenticated_roles", "title": "Authenticated Discovery Scan per Role", "repeatable": true, "description": "Execute the plan authenticated, once per role, to map per-role exposure. Filter against the baseline. Wordlist >= 20k entries. Do not scan more than 1 file extension at a time. At the end, add your endpoints through /api/v1/endpoint/..", "examples": "ffuf -u https://target.com/FUZZ -w raft-medium-directories.txt -H 'Cookie: <role session>' -fs <baseline size> -o role-admin.json"},
+        {"check": "subdomain_bruteforce", "title": "Subdomain Brute Force", "repeatable": true, "description": "Enumerate subdomains passively and by brute force. Only test the ones that are in scope; record the others in the notes for the operator.", "examples": "subfinder -d target.com -silent\nffuf -u https://FUZZ.target.com -w subdomains-top1million-20000.txt -mc all -fs <baseline size>"},
+        {"check": "full_tcp_nmap", "title": "Full TCP Port Scan", "repeatable": true, "description": "Do a -p- -sC -sV nmap scan to get full details. Feed any new HTTP service back into the endpoint list.", "examples": "nmap -Pn -p- -sC -sV -oA full-tcp target.com"},
+        {"check": "add_end_points", "title": "Add Endpoints From the Raw Captures", "repeatable": true, "description": "Information-gathering step only -- do NOT run any additional scans, fuzzing, browsing, or other active reconnaissance here. Download and parse the raw captures from the steps before. Do not just add endpoints from your memory/context windows. Really, look them up and parse them! Join/sort/unique the endpoints you find across sources, and add each one through /api/v1/endpoint/.. for later testing. The goal is full coverage of what has already been discovered.", "examples": "jq -r '.results[].url' unauth.json role-*.json | sort -u\nThen POST /api/v1/endpoint for each path not yet stored."}
+      ]
+    },
+    {
+      "id": "target_insights",
+      "icon": "<path d=\"M5 4h8a4 4 0 0 1 4 4v12H9a4 4 0 0 0-4-4V4z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M9 8h4M9 12h5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Target Insights and Understanding",
+      "description": "Understand the target. Combine the information you have. What is important? How does it fit with the scope and context from the first phase?",
+      "steps": [
+        {"check": "read_found_pages", "title": "Read the Discovered Pages", "description": "Open the interesting pages and API responses that recon discovered (admin areas, docs, error pages, exports, backups) and read them. Note what each one reveals about features, data and access control.", "examples": "Playwright: visit each new path as every role and take a screenshot\ncurl -s https://target.com/api/docs | jq ."},
+        {"check": "identify_boundaries_and_importance", "title": "Identify the Security Boundaries", "description": "IT security is all about breaking some sort of boundaries and contexts. Often they are defined by roles, tenants, firewalls or other access limitations like not knowing certain locations. What is the security concept of this application in that sense, and which boundary would hurt most if it broke?"},
+        {"check": "summarize_role_context", "title": "Summarise Roles & Their Endpoints", "description": "Find out what roles there are and how they interact with each other. Which endpoints matter for which role? Where does a lower role touch data that belongs to a higher role or another tenant?"},
+        {"check": "CVE_reseach_in_internet", "title": "Research Known Vulnerabilities", "description": "For every identified product, framework and version, search for known CVEs, public exploits and default credentials. Only note issues that plausibly apply to the observed versions; they become concrete tests later.", "examples": "searchsploit <product> <version>\nSearch NVD / GitHub advisories for '<framework> <version>'"},
+        {"check": "connect_to_initial_scope", "title": "Connect to the Initial Scope", "description": "Put the initial project information, scope and what you have read on the app into context and perspective with the roles and recon discoveries you have made so far. Does it all make sense or is something weird?"}
+      ]
+    },
+    {
+      "id": "free_reconnaissance",
+      "icon": "<circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M15 9l-2 4-4 2 2-4 4-2z\" fill=\"currentColor\"/>",
+      "name": "Free Reconnaissance",
+      "runs": 3,
+      "description": "Step back and look for recon gaps the structured steps missed. Recon only -- no security testing here.",
+      "steps": [
+        {"check": "free_recon", "title": "Free-Form Recon", "repeatable": true, "description": "Read GET /api/v1/notes and decide if anything is still missing recon-wise: an unscanned path, an unfingerprinted host, a role whose surface you do not understand. Only act on real gaps; otherwise finish with status=skipped.", "examples": "Targeted: ffuf a path you saw in JS but never enumerated.\nSkipped: status=skipped, observations='Recon already covered all hosts, roles and endpoints. Nothing missing.'"},
+        {"check": "review_and_add_endpoints", "title": "Add Newly Found Endpoints", "repeatable": true, "description": "Information-gathering only -- no new traffic to the target. Compare the stored endpoints against the logs and notes from the free recon. Add anything new through /api/v1/endpoint/..; if nothing is new, finish with status=skipped.", "examples": "Added: observations='Free recon found /internal/health and /api/v2/users in JS -- added both.'\nSkipped: status=skipped, observations='No new endpoints.'"}
+      ]
+    },
+    {
+      "id": "general_checks",
+      "_comment": "Phase id MUST stay 'general_checks': the workflow page hardcodes that id to render the 'In focus / Recently worked on' checklist panel (workflow.html + routes.py). Renaming it hides the panel.",
+      "kind": "checklist",
+      "icon": "<path d=\"M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M9 12l2 2 4-4\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
+      "name": "Work on Checklist",
+      "description": "Tune the project checklist to this target, then work every global-scope check to completion. Ignore the endpoint checks - they are worked on later. The phase advances only after all global-checks are finished.",
+      "steps": [
+        {"check": "adjust_checklist", "title": "Tune the Checklist", "description": "Review the checklist against this target. Mark irrelevant checks 'not applicable' with a one-line reason, and add any check that is missing. Be careful with removing checks -- better a bit too much than forgetting something. Use the API -- notes alone do not change the checklist. In this step's observations, summarise how many checks you marked not applicable and the rough categories.", "examples": "GET /api/v1/checklist/titles\nGET /api/v1/checklist/filter?status=pending\nPUT /api/v1/check/{id}/status  {\"status\": \"not applicable\"}\nPUT /api/v1/check/{id}/observations  {\"observations\": \"no TLS, plain HTTP only\"}"},
+        {"check": "adjust_checklist_runs", "title": "Increase Check Runs", "description": "Review the checklist against this target. For what checks would it make sense to have a deeper look? Increase the runs for these checks to have a very thorough look at them!"},
+        {"check": "whole_app_checks", "title": "Work the Global Checks", "repeatable": true, "description": "Work every global-scope check. Focus it, do real testing instead of trusting old notes, record what you did and found, then finish it. Keep going until every global-check is done. Any findings/weaknesses you find, immediately write an issue (or update an existing issue) using the /api/v1/finding API!", "examples": "POST /api/v1/check/{id}/focus\n...do the actual testing...\nPUT /api/v1/check/{id}/observations  {\"observations\": \"...\"}\nPOST /api/v1/check/{id}/finish"}
+      ]
+    },
+    {
+      "id": "endpoint_testing",
+      "kind": "endpoint",
+      "icon": "<path d=\"M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M4 7.5l8 4.5 8-4.5M12 12v9\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linejoin=\"round\"/>",
+      "name": "Endpoint Testing",
+      "description": "Pull together every endpoint discovered so far, organise them, then test each one for full coverage.",
+      "steps": [
+        {"check": "collect_endpoints", "title": "Collect Endpoints", "repeatable": true, "description": "Information-gathering only. Review the logs, notes and recon captures for endpoints found so far and add each one through /api/v1/endpoint/.. Do not run new scans here -- just make coverage complete.", "examples": "GET /api/v1/notes\nThen POST /api/v1/endpoint for each path not yet stored."},
+        {"check": "group_endpoints", "title": "Group by Feature", "repeatable": true, "description": "Sort the endpoints into feature groups so related functionality is tested together. Put endpoints that belong to the same backend feature into the same group.", "examples": "POST /api/v1/feature-groups  {\"name\": \"Authentication\"}\nPUT /api/v1/endpoint/{id}/feature-group  {\"feature_group\": \"<group_id>\"}"},
+        {"check": "adjust_endpoint_runs", "title": "Increase Endpoint Runs", "description": "Review the endpoints of this target. For what endpoints would it make sense to have a deeper look? Increase the runs for these endpoints to have a very thorough look at them!"},
+        {"check": "test_endpoints", "title": "Test All Endpoints", "repeatable": true, "description": "Test every endpoint thoroughly, one feature group at a time. For each endpoint run the per-endpoint checks, record observations and raw captures, set a status, then mark it tested. Any findings/weaknesses you find, immediately write an issue (or update an existing issue) using the /api/v1/finding API!", "examples": "POST /endpoint/{id}/focus -> POST /endpoint/{id}/checks-adjusted\nGET /workflow/endpoint-testing/current-step?endpoint_id={id}\n...test... PUT /check/{cid}/observations -> PUT /check/{cid}/status\nLoop until done, then POST /endpoint/{id}/unfocus."},
+        {"check": "review_notes_reopen_endpoints", "title": "Re-open Endpoints Worth Another Pass", "repeatable": true, "description": "Testing some endpoints often enables more testing on endpoints that are already finished: a new role, a leaked ID, a bypass. Read the notes and findings, re-open the endpoints that deserve another pass with the new knowledge and test them again. If nothing warrants it, finish with status=skipped.", "examples": "GET /api/v1/notes\nRe-open /api/orders/{id} after finding a way to enumerate order IDs."}
+      ]
+    },
+    {
+      "id": "free_testing",
+      "icon": "<path d=\"M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z\" fill=\"currentColor\"/><circle cx=\"19\" cy=\"5\" r=\"1.5\" fill=\"currentColor\"/><circle cx=\"5\" cy=\"19\" r=\"1.5\" fill=\"currentColor\"/>",
+      "name": "Free Testing",
+      "runs": 3,
+      "free": true,
+      "description": "Anything the structured phases missed? Chase hunches and follow up on what you have found.",
+      "steps": [
+        {"check": "refine_notes", "title": "Refine Notes", "description": "The notes should not be a simple log of what happened. They should reflect a more holistic view of the application: what is its main use case and therefore what are the main risks? What is the attacker model? What did the creators of the app try to accomplish when they developed it, and did they miss something? Rewrite the notes to contain both a structured overview of this test plus the more holistic risk view."},
+        {"check": "free_testing", "title": "Free-Form Testing", "repeatable": true, "description": "Follow up on anything the structured phases did not cover: a suspicious parameter, a business-logic flow, a race condition. Record what you try and what comes of it.", "examples": "curl an IDOR guess: curl -s https://target.com/api/orders/1002 -H 'Cookie: ...'\nReplay a suspicious request in Burp Repeater with a tampered parameter."}
+      ]
+    },
+    {
+      "id": "attack_chaining",
+      "icon": "<path d=\"M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Attack Chaining",
+      "description": "From the findings so far: can we do more with them? Do they open new recon, apply to other checks, or chain into something bigger?",
+      "steps": [
+        {"check": "review_for_more_impact", "title": "Push Each Finding Further", "repeatable": true, "description": "For every finding, ask what the worst realistic outcome is and try to reach it within scope: read instead of detect, another tenant instead of another user, admin instead of user. Update the finding's severity and evidence with what you achieve.", "examples": "Reflected XSS -> can it steal an admin session or trigger an admin action?\nIDOR on read -> does the same ID work on update/delete?"},
+        {"check": "recon_from_findings", "title": "Recon From Findings", "repeatable": true, "description": "Use what the findings exposed (leaked paths, IDs, tokens, internal hostnames, stack traces) as new recon input. Add new endpoints through /api/v1/endpoint/.. and note new hosts for the operator if they are out of scope.", "examples": "A stack trace reveals /internal/admin -> add it and test it.\nA leaked JWT secret -> forge tokens for other roles."},
+        {"check": "map_to_other_checks", "title": "Map to Other Checks", "repeatable": true, "description": "Check whether each finding's root cause also applies elsewhere: the same missing authorisation on sibling endpoints, the same unsanitised parameter in other features. Re-open and update the affected checks and endpoints.", "examples": "Missing ownership check on /api/invoices/{id} -> test /api/quotes/{id}, /api/orders/{id}"},
+        {"check": "test_attack_chains", "title": "Test Attack Chains", "repeatable": true, "description": "Combine weak signals and low findings into a chain with real impact and test it end to end. Write a finding for the chain itself, referencing the individual findings, with the full reproduction.", "examples": "User enumeration + no rate limit on login + weak password policy -> account takeover\nOpen redirect + OAuth flow -> token theft"}
+      ]
+    },
+    {
+      "id": "additional_work",
+      "icon": "<circle cx=\"11\" cy=\"11\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M20 20l-4-4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M11 8.5v5M8.5 11h5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Additional Work",
+      "description": "Before writing anything up, do the extra work that pays off: dig deeper where a vulnerability is likely hiding, then prune anything that will not hold up. Only confirmed, reproducible issues should reach Finding Writing.",
+      "steps": [
+        {"check": "deep_dive_vuln_search", "title": "Deep-Dive Where It Pays Off", "repeatable": true, "description": "Read GET /api/v1/notes and review the testing so far, then pick the spots where a deeper vulnerability hunt is worth it -- a high-value endpoint, a suspicious parameter, a half-explored auth or business-logic flow. Dig into those hard and test them properly. If nothing warrants a deeper look, finish with status=skipped. Change the checklist checks and endpoint observations if you found new facts.", "examples": "Re-examine an endpoint that returned odd errors with more aggressive, targeted payloads.\nChain two weak signals from earlier phases into a real exploitation attempt.\nSkipped: status=skipped, observations='Coverage was thorough; no area warrants a deeper dive.'"},
+        {"check": "identify_false_positives", "title": "Identify False Positives", "repeatable": true, "description": "Go back over every suspected vulnerability and reproduce it from scratch. Discard anything that does not hold up as a false positive, and keep a clean reproduction plus evidence for the ones that do. Record the verdict for each so Finding Writing only sees confirmed, reproducible issues.", "examples": "Re-run the exact request that triggered the issue and confirm the result is consistent.\nDiscard a 'finding' that only fired once and cannot be reproduced.\nNote the confirmed repro steps so Finding Writing can lift them directly."}
+      ]
+    },
+    {
+      "id": "finding_writing",
+      "icon": "<path d=\"M5 3v18\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M5 4h13l-3 4 3 4H5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/>",
+      "name": "Finding Writing",
+      "description": "Turn every confirmed vulnerability into a clear, evidenced finding.",
+      "steps": [
+        {"check": "write_findings", "title": "Write Up Findings", "repeatable": true, "description": "Create a finding for every confirmed vulnerability with a clear title, a severity and a description of impact and reproduction. Attach the supporting raw captures so each finding stands on its own. The description should start with 1) What is the problem in simple non-technical words then 2) A 'so-what' section that explains why this is a problem and then 3) more technical details. The recommendation should offer the proper fix and also quick fixes as an alternative if the proper fix is very work intensive.", "examples": "POST /api/v1/finding  {\"title\": \"SQLi at /login\", \"severity\": \"high\", \"description\": \"...\"}\nPUT /api/v1/finding/{id}/raw-captures  (attach request/response evidence)"},
+        {"check": "attach_finding_screenshots", "title": "Screenshot Medium+ Findings", "description": "Every finding rated medium, high or critical must carry at least one screenshot as evidence. Review each finding's severity and attach a screenshot raw capture to any that is medium or higher. Findings rated info or low do not require one. This is important. Install more tools to do this if you need to! Make sure you really take screenshots!", "examples": "GET /api/v1/findings  (review each finding's severity)\nPOST /api/v1/finding/{id}/raw-captures  (attach a screenshot for each medium-or-higher finding)"}
+      ]
+    }
+  ]
+}

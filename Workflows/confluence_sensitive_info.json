@@ -1,0 +1,106 @@
+{
+  "id": "confluence-sensitive-info",
+  "name": "Confluence Sensitive-Info Discovery",
+  "color": "#8b5cf6",
+  "checklist": "confluence-sensitive-info",
+  "phases": [
+    {
+      "id": "scoping",
+      "icon": "<circle cx=\"11\" cy=\"11\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M20 20l-4-4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Scoping & Access",
+      "description": "Confirm authorization and scope, prove you can search the instance, then map the spaces and the permission model. 'Exposed to whom' depends on which user you search as, so pin the auth context down before searching anything. Register every in-scope space via /api/v1/endpoint/.. so later phases have full coverage.",
+      "steps": [
+        {"check": "confirm_authorization", "title": "Confirm Authorization & Scope", "description": "Confirm this engagement is authorized and record the scope: which Confluence instance/URL, which spaces are in-scope, and what counts as 'sensitive' for this client (secrets, PII, infra, financial). Do not search anything outside the agreed scope.", "examples": "Note the instance base URL and the in-scope space keys.\nNote the sensitivity categories that matter to this client.\nIf scope is unclear, stop and ask before searching."},
+        {"check": "confirm_api_access", "title": "Confirm Search Access", "description": "Verify you can reach the Confluence API / CQL search with the provided credentials, and record WHICH user you are authenticated as and what that user can see. This auth context defines the audience for every later finding.", "examples": "Run a trivial CQL search and confirm results come back.\nRecord the authenticated principal (user + groups).\nIf multiple credential sets exist (admin vs. low-priv), note which you are using."},
+        {"check": "enumerate_spaces", "title": "Enumerate Spaces", "repeatable": true, "description": "List every space with its key, page count and permission model. Identify which spaces are anonymous / all-employee readable versus restricted. Build the initial map of where sensitive data is most likely to live (IT, DevOps, Security, HR, Finance, Onboarding, personal spaces).", "examples": "List all spaces + page counts.\nFlag each space's audience: anonymous / all-employees / restricted.\nGET /api/v1/notes then record the space map."},
+        {"check": "understand_landscape", "title": "Understand the Landscape", "description": "Write a short holistic view into the notes: how this org uses Confluence, which departments own which spaces, and therefore where the highest-value sensitive data concentrates. This drives which spaces get extra runs later.", "examples": "Which spaces are IT/Sec/DevOps owned?\nWhere would onboarding docs, runbooks and credentials plausibly sit?\nWrite this into GET/PUT /api/v1/notes."},
+        {"check": "register_spaces", "title": "Register Spaces in ShiftGrid", "repeatable": true, "description": "Add every in-scope space through /api/v1/endpoint/.. (each space is treated as a unit to test). This makes coverage in the per-space phase measurable. Add ALL in-scope spaces, not just the obvious ones.", "examples": "POST /api/v1/endpoint for each in-scope space (key + name + audience).\nDo not skip 'boring looking' spaces -- secrets hide in them."}
+      ]
+    },
+    {
+      "id": "search_planning",
+      "icon": "<path d=\"M4 6h16M4 12h16M4 18h10\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Search-Term Planning",
+      "description": "Build the reusable query dictionaries and the coverage ledger BEFORE sweeping. The ledger is what makes 'are we done?' verifiable instead of a guess -- every later phase reads and updates it.",
+      "steps": [
+        {"check": "build_query_dictionaries", "title": "Build Query Dictionaries + Ledger", "description": "Write category-by-category query dictionaries into the notes and set up a coverage ledger. Categories: secrets/credentials, PII/regulated, infra/access, financial/legal. For each category list concrete terms (plus synonyms, abbreviations, misspellings, other languages). The ledger tracks: term x space = searched? hits?", "examples": "Secrets: password, passwd, api_key, secret, token, Bearer, BEGIN RSA, AKIA, xoxb-, connectionstring\nPII: salary, IBAN, passport, DOB, employee id, home address\nInfra: VPN, jump host, ssh, runbook, kubeconfig, internal hostnames\nWrite the dictionaries + empty ledger into PUT /api/v1/notes."}
+      ]
+    },
+    {
+      "id": "broad_sweeps",
+      "icon": "<circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M15 9l-2 4-4 2 2-4 4-2z\" fill=\"currentColor\"/>",
+      "name": "Broad Search Sweeps",
+      "runs": 4,
+      "description": "The core discovery engine. This phase re-enters multiple times ON PURPOSE -- one pass never finds everything. If a sweep feels exhausted, that is the signal you searched too NARROWLY: broaden with synonyms, abbreviations, misspellings, other languages, comments and attachment bodies. Do not stop early.",
+      "steps": [
+        {"check": "broad_search", "title": "Run Broad Searches", "repeatable": true, "description": "Issue instance-wide searches across ALL categories in the dictionary. Rules for each run: (1) touch every category before finishing, (2) issue at least ~15 distinct queries, (3) log every query and every hit into the ledger with page URL + space + audience. You may only finish a run with status=skipped if the ledger shows every term has already been searched instance-wide -- and then you must write the justification naming what is covered. Never just stop.", "examples": "CQL: text ~ 'api_key', text ~ 'BEGIN RSA', text ~ 'salary', text ~ 'VPN' ...\nFor a hit: record URL + space + audience + which dictionary term matched.\nSkipped: status=skipped, observations='Every secrets/PII/infra/financial term searched instance-wide, ledger complete; remaining depth handled per-space.'"}
+      ]
+    },
+    {
+      "id": "general_checks",
+      "_comment": "Phase id MUST stay 'general_checks': the workflow page hardcodes that id to render the 'In focus / Recently worked on' checklist panel (workflow.html + routes.py). Renaming it hides the panel.",
+      "kind": "checklist",
+      "icon": "<path d=\"M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M9 12l2 2 4-4\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
+      "name": "Instance-Wide Checks",
+      "description": "Work the global-scope checks: exposure/access hygiene and the instance-wide sweeps. Ignore the per-space checks here -- they are worked later. The phase advances only after every global check is finished.",
+      "steps": [
+        {"check": "adjust_checklist", "title": "Tune the Checklist", "description": "Review the checklist against this instance. Mark irrelevant checks 'not applicable' with a one-line reason and add any missing check. Use the API -- notes alone do not change the checklist.", "examples": "GET /api/v1/checklist/titles\nPUT /api/v1/check/{id}/status  {\"status\": \"not applicable\"}\nPUT /api/v1/check/{id}/observations  {\"observations\": \"no anonymous access configured\"}"},
+        {"check": "adjust_checklist_runs", "title": "Increase Check Runs", "description": "Which global checks deserve a deeper look on this instance? Increase the runs for those checks so they get a very thorough pass.", "examples": "Raise runs on global_secret_sweep if the org is credential-heavy.\nRaise runs on instance_anonymous_access if many spaces are open."},
+        {"check": "whole_instance_checks", "title": "Work the Global Checks", "repeatable": true, "description": "Work every global-scope check to completion. Focus it, do real searching instead of trusting old notes, record what you searched and found, then finish it. Keep going until every global check is done. Any real exposure you confirm, immediately write it up via /api/v1/finding (or update an existing finding).", "examples": "POST /api/v1/check/{id}/focus\n...do the actual searching...\nPUT /api/v1/check/{id}/observations  {\"observations\": \"...\"}\nPOST /api/v1/check/{id}/finish"}
+      ]
+    },
+    {
+      "id": "space_testing",
+      "kind": "endpoint",
+      "icon": "<path d=\"M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M4 7.5l8 4.5 8-4.5M12 12v9\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linejoin=\"round\"/>",
+      "name": "Per-Space Deep Dive",
+      "description": "Pull together every in-scope space, group them by owning function, then search each one deeply for full coverage. Space-scoped search catches what instance-wide ranking buried.",
+      "steps": [
+        {"check": "collect_spaces", "title": "Collect Spaces", "repeatable": true, "description": "Information-gathering only. Review notes and the ledger for in-scope spaces and add each one through /api/v1/endpoint/.. that is not yet stored. Do not run new searches here -- just make the unit list complete.", "examples": "GET /api/v1/notes\nPOST /api/v1/endpoint for each space not yet stored."},
+        {"check": "group_spaces", "title": "Group by Function", "repeatable": true, "description": "Sort spaces into functional groups (IT/DevOps, Security, HR, Finance, Product, Personal) so related content is tested together and the high-value groups are obvious.", "examples": "POST /api/v1/feature-groups  {\"name\": \"IT / DevOps\"}\nPUT /api/v1/endpoint/{id}/feature-group  {\"feature_group\": \"<group_id>\"}"},
+        {"check": "adjust_space_runs", "title": "Increase Space Runs", "description": "Which spaces warrant a deeper look (IT, Security, HR, Finance, wide-audience spaces)? Increase the runs for those spaces so they get a very thorough pass.", "examples": "Raise runs on IT/Sec spaces and on any all-employee-readable space.\nLeave a low run count on tiny archived spaces."},
+        {"check": "test_spaces", "title": "Search All Spaces", "repeatable": true, "description": "Search every space thoroughly, one functional group at a time. For each space run the per-space checks (credentials, PII, infra, attachments, permissions, comments/versions), record observations and raw captures, set a status, then mark it tested. Any confirmed exposure, immediately write it up via /api/v1/finding.", "examples": "POST /endpoint/{id}/focus -> POST /endpoint/{id}/checks-adjusted\nGET /workflow/space-testing/current-step?endpoint_id={id}\n...search the space... PUT /check/{cid}/observations -> PUT /check/{cid}/status\nLoop until done, then POST /endpoint/{id}/unfocus."}
+      ]
+    },
+    {
+      "id": "attachments",
+      "icon": "<path d=\"M8 12l6-6a3 3 0 014 4l-7 7a5 5 0 01-7-7l7-7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
+      "name": "Attachments & Non-Text",
+      "runs": 2,
+      "description": "Where real secrets hide. Re-enters twice on purpose -- attachments are easy to under-search. Cover attachment names AND bodies across all in-scope spaces.",
+      "steps": [
+        {"check": "attachment_search", "title": "Search Attachments", "repeatable": true, "description": "Enumerate attachments across in-scope spaces and inspect names and contents for secrets and PII. Download and grep suspicious files. Log every hit to the ledger. Do not finish a run without covering the flagged file types; if truly nothing matches, finish status=skipped with a justification.", "examples": "CQL: type = attachment\nFlag names: .env, .pem, .pfx, id_rsa, .kubeconfig, .sql, .xlsx, .pcap, backup, config\nDownload + grep for keys/PII; record URL + space + audience per hit."}
+      ]
+    },
+    {
+      "id": "coverage_gap",
+      "icon": "<path d=\"M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z\" fill=\"currentColor\"/><circle cx=\"19\" cy=\"5\" r=\"1.5\" fill=\"currentColor\"/><circle cx=\"5\" cy=\"19\" r=\"1.5\" fill=\"currentColor\"/>",
+      "name": "Coverage Gap Review",
+      "runs": 3,
+      "description": "A structural second guard against stopping early. Read the ledger and hunt for what was NOT searched -- an untouched space, an unsearched term, a category skipped for some space, comments/versions never checked. Only finish status=skipped when the ledger genuinely shows full coverage.",
+      "steps": [
+        {"check": "gap_review", "title": "Find Coverage Gaps", "repeatable": true, "description": "Read GET /api/v1/notes and the ledger. Find any space x category x term combination that was never searched, and search it now. Also broaden: terms you never tried, synonyms, other languages, page history. Update checklist/space observations with anything new. Only finish status=skipped when every ledger cell is filled -- and name what is covered.", "examples": "Targeted: a space you registered but never ran the PII dictionary against.\nBroaden: a synonym for 'password' in the org's working language you never tried.\nSkipped: status=skipped, observations='Ledger complete: every in-scope space searched for every category term, including attachments and history.'"}
+      ]
+    },
+    {
+      "id": "false_positives",
+      "icon": "<circle cx=\"11\" cy=\"11\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M20 20l-4-4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M11 8.5v5M8.5 11h5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Verify & Prune",
+      "description": "Before writing anything up: confirm each hit is genuinely sensitive AND exposed beyond its intended audience, and discard the noise. Only confirmed, correctly-scoped exposures should reach Finding Writing.",
+      "steps": [
+        {"check": "verify_exposure", "title": "Verify Real Exposure", "repeatable": true, "description": "For each candidate hit, confirm two things: the data really is sensitive (not a placeholder/example/rotated value), and it is readable by a wider audience than intended. Re-check the containing space's permissions. A live secret in an all-employee space is critical; the same string in a 2-admin space may be low or not a finding.", "examples": "Open the page and confirm the value is real, not 'password = <your password here>'.\nRe-confirm who can read the space (anonymous / all-employees / restricted).\nRecord the confirmed audience for severity scoring."},
+        {"check": "prune_false_positives", "title": "Prune False Positives", "repeatable": true, "description": "Discard hits that do not hold up: placeholders, documentation examples, already-rotated credentials, or data only visible to those already entitled to it. Keep a clean record and evidence for the ones that survive, with the verdict for each.", "examples": "Discard a 'token' that is clearly an example in API docs.\nDiscard a credential in a space only its owners can read.\nKeep confirmed exposures with page URL + audience + evidence."}
+      ]
+    },
+    {
+      "id": "finding_writing",
+      "icon": "<path d=\"M5 3v18\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M5 4h13l-3 4 3 4H5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/>",
+      "name": "Finding Writing",
+      "description": "Turn every confirmed exposure into a clear, evidenced finding.",
+      "steps": [
+        {"check": "write_findings", "title": "Write Up Findings", "repeatable": true, "description": "Create a finding for every confirmed exposure. Include WHAT the sensitive data is, WHERE it lives (page URL + space + who can currently read it), and severity driven by sensitivity x audience. Description order: 1) the problem in plain non-technical words, 2) a 'so-what' explaining why it matters, 3) technical detail. Recommendation offers the proper fix (remove/rotate/restrict) plus a quick fix. Attach raw captures so each finding stands alone.", "examples": "POST /api/v1/finding  {\"title\": \"AWS key exposed in all-employee space\", \"severity\": \"high\", \"description\": \"...\"}\nPUT /api/v1/finding/{id}/raw-captures  (attach the page/attachment evidence)"},
+        {"check": "attach_finding_screenshots", "title": "Screenshot Medium+ Findings", "description": "Every finding rated medium, high or critical must carry at least one screenshot as evidence -- the page showing the exposed data plus its access/permission panel. Info/low findings do not require one. Really take the screenshots; install tooling if you need to.", "examples": "GET /api/v1/findings  (review each finding's severity)\nPOST /api/v1/finding/{id}/raw-captures  (attach a screenshot for each medium-or-higher finding)"}
+      ]
+    }
+  ]
+}

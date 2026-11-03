@@ -46,6 +46,11 @@ class ProjectService:
         self.default_base.mkdir(parents=True, exist_ok=True)
         self.workflows = workflows
         self.checklists = checklists
+        # Ids loaded from the Workflows/ and Checklists/ folders at startup. An
+        # extension may register more (e.g. per-project custom definitions) into
+        # the dicts above; pickers offer only these built-ins.
+        self.builtin_workflow_ids = frozenset(workflows)
+        self.builtin_checklist_ids = frozenset(checklists)
         self._repo = repository
         self._project: Project | None = None
         self._host_prefix = host_prefix.rstrip("/\\") if host_prefix else None

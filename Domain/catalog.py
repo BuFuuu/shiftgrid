@@ -11,6 +11,8 @@ class Workflow:
         self.name = data["name"]
         self.checklist_id = data.get("checklist", data["id"])
         self.color = data.get("color")
+        # "common": true in the file lists it first in the new-project picker.
+        self.common = bool(data.get("common", False))
         self.phases = data["phases"]
         self._raw = data
 
@@ -50,6 +52,7 @@ class Checklist:
     def __init__(self, data: dict):
         self.id = data["id"]
         self.name = data.get("name", self.id)
+        self.common = bool(data.get("common", False))
         self.items = {item["id"]: item for item in data.get("items", [])}
         self._raw = data
 

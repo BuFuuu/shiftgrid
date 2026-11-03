@@ -1,0 +1,290 @@
+{% extends "project_base.html" %}
+{% block title %}Scope - {{ project.name }}{% endblock %}
+{% block content_class %}scope-content{% endblock %}
+{% block content %}
+<style>
+  /* Two rows of two cards with the same column split, so edges line up:
+     scope | target context, then options | credentials. Equal row heights
+     make all four cards the same height (the tallest one sets it); the text
+     boxes inside still size to their content. */
+  .scope-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+    grid-auto-rows: 1fr;
+    gap: 18px;
+  }
+  .scope-grid > .panel { margin-bottom: 0; }
+  .scope-grid .panel-head { margin-bottom: 12px; }
+  .scope-grid .panel-head h2 { margin: 0; display: inline-flex; align-items: center; gap: 8px; }
+  .scope-grid .panel-head h2 svg { color: var(--ic-scope); }
+  .scope-grid .form { gap: 12px; }
+
+  /* Text boxes start one line tall and grow with their content (autosize
+     script below), up to a cap where they start scrolling. */
+  .scope-grid textarea[data-autosize] {
+    box-sizing: border-box;
+    resize: none;
+    overflow-y: hidden;
+    line-height: 20px;
+    min-height: 38px;
+    max-height: 320px;
+  }
+
+  /* Actions only show up once there is something to act on. */
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 14px;
+    flex-wrap: wrap;
+  }
+  .card-footer:not(:has(.actions > :not([hidden]))) { display: none; }
+  .card-footer .actions { display: flex; gap: 8px; margin-left: auto; }
+  .card-footer [hidden] { display: none !important; }  /* .btn sets display */
+
+  /* Locked scope: read-only target list instead of a disabled textarea. */
+  .scope-targets { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .scope-targets li {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 4px 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .scope-targets li::before {
+    content: ""; flex: 0 0 auto;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ic-scope);
+  }
+
+  /* Options card: rows sit flush with the card padding. */
+  .scope-grid .options-panel { padding: 20px 22px; }
+  .scope-grid .option-row:first-of-type { padding-top: 0; }
+  .scope-grid .option-row:last-of-type { padding-bottom: 0; }
+  .scope-grid .option-row select { max-width: 180px; }
+
+  /* Credentials */
+  .cred-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 12px; }
+  .cred-table th {
+    text-align: left;
+    padding: 0 10px 8px;
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .cred-table td { padding: 8px 10px; border-top: 1px solid var(--border); vertical-align: middle; }
+  .cred-table tr:last-child td { border-bottom: 1px solid var(--border); }
+  .cred-table th:first-child, .cred-table td:first-child { padding-left: 0; }
+  .cred-table th:last-child, .cred-table td:last-child { padding-right: 0; text-align: right; width: 1%; }
+  .cred-table code { font-size: 12px; overflow-wrap: anywhere; }
+  .cred-notes { color: var(--muted); }
+  .cred-add {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) auto;
+    gap: 8px;
+  }
+  .cred-add input { min-width: 0; }
+
+  @media (max-width: 1100px) {
+    /* Stacked: equal heights would only add empty space. */
+    .scope-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+  }
+  @media (max-width: 640px) {
+    .cred-add { grid-template-columns: minmax(0, 1fr); }
+    .cred-table thead { display: none; }
+    .cred-table tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+    .cred-table td { padding: 0 !important; border: 0 !important; text-align: left !important; width: auto !important; }
+    .cred-table td:last-child { grid-column: 2; grid-row: 1 / span 4; align-self: center; }
+  }
+</style>
+
+<div class="scope-grid">
+  <section class="panel">
+    <div class="panel-head">
+      <h2 class="scope-title">
+        {% if project.scope_locked %}
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        {% else %}
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 7.3-2.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        {% endif %}
+        <span>Scope</span>
+      </h2>
+      <span class="scope-head-meta">
+        {% if project.scope %}<span class="muted small">{{ project.scope | length }} target{{ '' if project.scope | length == 1 else 's' }}</span>{% endif %}
+        {% if project.scope_locked %}
+          <span class="lock">
+            <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span>locked</span>
+          </span>
+        {% endif %}
+      </span>
+    </div>
+
+    {% if project.scope_locked %}
+      {% if project.scope %}
+        <ul class="scope-targets">
+          {% for target in project.scope %}<li>{{ target }}</li>{% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted small">No targets.</p>
+      {% endif %}
+    {% else %}
+      <form method="post" action="{{ url_for('scope_bp.scope_save') }}" class="form" id="scope-form" data-dirty-form>
+        <textarea name="scope" rows="1" data-autosize placeholder="Add targets, one per line — e.g. example.com" aria-label="Targets and boundaries" spellcheck="false">{{ project.scope | join('\n') }}</textarea>
+        <div class="card-footer">
+          <div class="actions">
+            {% if project.scope %}<button class="btn small" type="submit" form="scope-lock-form" data-hide-when-dirty>Lock scope</button>{% endif %}
+            <button class="btn primary small" type="submit" data-show-when-dirty hidden title="Ctrl+Enter">Save scope</button>
+          </div>
+        </div>
+      </form>
+      <form method="post" action="{{ url_for('scope_bp.scope_lock') }}" id="scope-lock-form" hidden
+            onsubmit="return confirm('Lock the scope? It can no longer be edited afterwards.');"></form>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Target context</h2>
+      {% if project.data.created_at %}
+        <span class="pill timestamp-pill" title="Project created">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+          <span>{{ project.data.created_at | fmt_dt }}</span>
+        </span>
+      {% endif %}
+    </div>
+    <form method="post" action="{{ url_for('scope_bp.scope_save') }}" class="form" data-dirty-form>
+      <label>
+        <span>Context</span>
+        <textarea name="context" rows="1" data-autosize placeholder="Business purpose, sensitive flows, known risks…">{{ project.data.context or '' }}</textarea>
+      </label>
+      <label>
+        <span>Details</span>
+        <textarea name="details" rows="1" data-autosize placeholder="Test window, rules of engagement, contacts…">{{ project.data.details or '' }}</textarea>
+      </label>
+      <div class="card-footer">
+        <div class="actions"><button class="btn primary small" type="submit" data-show-when-dirty hidden>Save context</button></div>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel options-panel">
+    <div class="panel-head"><h2>Project options</h2></div>
+    <div class="option-row">
+      <div class="option-info">
+        <span class="option-label">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Mandatory note-taking
+        </span>
+        <span class="option-desc">Agents must attach a notes diff on every finish &amp; done call (phase advance is exempt). The web UI is unaffected.</span>
+      </div>
+      <form method="post" action="{{ url_for('scope_bp.set_notes_required') }}" style="display:contents;">
+        <label class="toggle-switch" title="When on, agents must pass notes_old_string + notes_new_string on finish / done calls (Edit-tool semantics). Phase advance never requires a notes diff. Web UI is not gated.">
+          <input type="checkbox" name="notes_required" value="1"
+                 {% if project.notes_required %}checked{% endif %}
+                 onchange="this.closest('form').submit()">
+          <span class="toggle-track"></span>
+        </label>
+      </form>
+    </div>
+    <div class="option-row">
+      <div class="option-info">
+        <span class="option-label">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+          Timezone
+        </span>
+        <span class="option-desc">All timestamps in this project are shown in this timezone.</span>
+      </div>
+      <form method="post" action="{{ url_for('scope_bp.set_timezone') }}" style="display:contents;">
+        <select name="timezone" onchange="this.closest('form').submit()" aria-label="Project timezone">
+          {% for tz in timezone_choices %}
+            <option value="{{ tz }}" {% if project.timezone == tz %}selected{% endif %}>{{ tz }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Credentials</h2>
+      {% if project.credentials %}<span class="muted small">{{ project.credentials | length }} saved</span>{% endif %}
+    </div>
+    {% if project.credentials %}
+      <table class="cred-table">
+        <thead><tr><th>Username</th><th>Password</th><th>Notes</th><th>Source</th><th aria-label="Actions"></th></tr></thead>
+        <tbody>
+          {% for c in project.credentials %}
+            <tr>
+              <td><code>{{ c.username }}</code></td>
+              <td><code>{{ c.password }}</code></td>
+              <td class="cred-notes">{{ c.observations }}</td>
+              <td><span class="pill">{{ c.source }}</span></td>
+              <td>
+                <form method="post" action="{{ url_for('scope_bp.delete_credential', cred_id=c.id) }}">
+                  <button class="btn danger small" type="submit">Remove</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+    <form method="post" action="{{ url_for('scope_bp.add_credential') }}" class="cred-add">
+      <input type="text" name="username" placeholder="Username" aria-label="Username" autocomplete="off">
+      <input type="text" name="password" placeholder="Password" aria-label="Password" autocomplete="off">
+      <input type="text" name="observations" placeholder="Notes, e.g. read-only role" aria-label="Notes">
+      <input type="hidden" name="source" value="manual">
+      <button class="btn primary" type="submit">Add</button>
+    </form>
+  </section>
+</div>
+
+<script>
+  (function () {
+    // Grow text boxes with their content: one line when empty, up to the CSS
+    // max-height, after which they scroll.
+    function fit(t) {
+      t.style.height = 'auto';
+      var max = parseFloat(getComputedStyle(t).maxHeight) || Infinity;
+      var h = t.scrollHeight + (t.offsetHeight - t.clientHeight);
+      t.style.height = Math.min(h, max) + 'px';
+      t.style.overflowY = h > max ? 'auto' : 'hidden';
+    }
+    document.querySelectorAll('.scope-grid textarea[data-autosize]').forEach(function (t) {
+      fit(t);
+      t.addEventListener('input', function () { fit(t); });
+    });
+    window.addEventListener('resize', function () {
+      document.querySelectorAll('.scope-grid textarea[data-autosize]').forEach(fit);
+    });
+
+    // Save buttons appear only once something changed; Lock hides meanwhile.
+    document.querySelectorAll('[data-dirty-form]').forEach(function (form) {
+      var fields = form.querySelectorAll('textarea, input:not([type=hidden])');
+      var initial = Array.prototype.map.call(fields, function (f) { return f.value; });
+      form.addEventListener('input', function () {
+        var dirty = Array.prototype.some.call(fields, function (f, i) { return f.value !== initial[i]; });
+        form.querySelectorAll('[data-show-when-dirty]').forEach(function (b) { b.hidden = !dirty; });
+        form.querySelectorAll('[data-hide-when-dirty]').forEach(function (b) { b.hidden = dirty; });
+      });
+    });
+
+    // Ctrl/Cmd+Enter inside the scope box saves the scope.
+    var scopeForm = document.getElementById('scope-form');
+    if (scopeForm) {
+      scopeForm.querySelector('textarea').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          if (scopeForm.requestSubmit) { scopeForm.requestSubmit(); } else { scopeForm.submit(); }
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

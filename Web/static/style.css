@@ -1210,11 +1210,6 @@ main.content.landing-core { max-width: 560px; padding-top: 96px; }
   border-color: rgba(251,146,60,0.48);
   background: rgba(251,146,60,0.12);
 }
-.workflow-type-web_application_red_team {
-  color: var(--sp-magenta);
-  border-color: rgba(217,70,239,0.48);
-  background: rgba(217,70,239,0.12);
-}
 .workflow-type-options {
   display: flex;
   flex-wrap: wrap;

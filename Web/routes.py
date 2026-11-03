@@ -51,28 +51,42 @@ def require_loaded(view):
 _ALIAS_SOURCE = {a["alias_id"]: a["source_id"] for a in WORKFLOW_ALIASES}
 
 
+def _builtin_workflows(s):
+    """Built-in workflows (loaded from Workflows/), in loader order. Excludes any
+    definitions an extension registered later, e.g. per-project custom ones."""
+    return [wf for wf in s.workflows.values() if wf.id in s.builtin_workflow_ids]
+
+
 def _workflow_options(s):
     """Workflow choices enriched with the checklist they pull from, for the
-    new-project picker. For alias project types, surface the underlying
-    workflow id so the UI doesn't claim a workflow file that doesn't exist."""
+    new-project picker: built-ins only, `common` ones first. For alias project
+    types, surface the underlying workflow id so the UI doesn't claim a workflow
+    file that doesn't exist."""
     options = []
-    for wf in s.workflows.values():
+    for wf in _builtin_workflows(s):
         cl = s.checklists.get(wf.checklist_id)
         options.append({
             "id": wf.id,
             "name": wf.name,
             "color": wf.color,
+            "common": wf.common,
             "workflow_id": _ALIAS_SOURCE.get(wf.id, wf.id),
             "checklist_id": wf.checklist_id,
             "checklist_name": cl.name if cl else wf.checklist_id,
         })
-    return options
+    return sorted(options, key=lambda o: not o["common"])  # stable: keeps loader order
 
 
 def _checklist_options(s):
     """Checklist choices for the new-project picker, so the operator can pick a
-    checklist independently of the workflow's default."""
-    return [{"id": cl.id, "name": cl.name} for cl in s.checklists.values()]
+    checklist independently of the workflow's default. Built-ins only, `common`
+    ones first, each group in the order the workflows using them are listed."""
+    rank = {}
+    for i, wf in enumerate(_builtin_workflows(s)):
+        rank.setdefault(wf.checklist_id, i)
+    checklists = [cl for cl in s.checklists.values() if cl.id in s.builtin_checklist_ids]
+    checklists.sort(key=lambda cl: (not cl.common, rank.get(cl.id, len(rank)), cl.name.lower()))
+    return [{"id": cl.id, "name": cl.name, "common": cl.common} for cl in checklists]
 
 
 @web_bp.get("/project/heartbeat")

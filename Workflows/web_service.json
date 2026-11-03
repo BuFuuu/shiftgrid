@@ -1,0 +1,154 @@
+{
+  "id": "web_service",
+  "name": "Web Service / API",
+  "common": true,
+  "checklist": "web_service",
+  "phases": [
+    {
+      "id": "scope_definition",
+      "icon": "<circle cx=\"12\" cy=\"12\" r=\"8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><circle cx=\"12\" cy=\"12\" r=\"3\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M12 1v4M12 19v4M1 12h4M19 12h4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Scope, Context & Credentials",
+      "description": "The operator adds what is already known before the engagement starts: API boundaries, environments, allowed methods, auth material, roles, rate-limit constraints, test accounts and forbidden destructive operations. Only the operator can advance this phase.",
+      "human_advance": true,
+      "steps": [
+        {"check": "set_api_boundaries", "title": "Set the API Boundaries", "description": "Record the in-scope base URLs, environments (prod/staging), API versions and allowed HTTP methods, plus everything explicitly out of scope (third-party integrations, production data, destructive operations, rate limits, testing windows). Later steps treat this as the hard limit.", "examples": "Scope: api.example.com/v2 (staging), partner-api.example.com\nOut of scope: billing.example.com (third-party processor), no bulk-delete testing, max 10 req/s"},
+        {"check": "record_api_context", "title": "Record API Context", "description": "Add what the client told you: what the API does, who consumes it (mobile app, partner integration, internal service), what the main resources and business flows are, and any known weak spots.", "examples": "Context: REST API backing a B2B invoicing SaaS; consumers are the web app and a public partner integration\nKnown weak spot: legacy /v1 endpoints still reachable alongside /v2"},
+        {"check": "record_roles_and_tokens", "title": "Supply Roles & Tokens", "description": "Add the test credentials or tokens for every role, plus how auth works (API key, OAuth, session cookie, mTLS). Missing credentials limit the authenticated testing later on.", "examples": "Roles: anonymous, user, partner, admin -- one token each\nAuth: Bearer JWT via /auth/token, 1h expiry, refresh token supported"}
+      ]
+    },
+    {
+      "id": "reachability",
+      "icon": "<path d=\"M5 12.5a10 10 0 0 1 14 0M8 16a6 6 0 0 1 8 0\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\"/><circle cx=\"12\" cy=\"19\" r=\"1.5\" fill=\"currentColor\"/>",
+      "name": "Reachability & Authentication",
+      "description": "Confirm that the API base URLs are reachable, TLS works, expected auth schemes are understood, and each supplied role or token can authenticate before spending time on recon.",
+      "steps": [
+        {"check": "confirm_base_urls", "title": "Confirm Base URL Reachability", "description": "Confirm every in-scope base URL is up and responding before testing. Resolve its DNS and send a basic request to each known host and version prefix. If it is not reachable do not continue this workflow / test.", "examples": "dig +short api.example.com\ncurl -skI https://api.example.com/v2/health"},
+        {"check": "confirm_tls_connection", "title": "Confirm TLS", "description": "Connect over TLS to every in-scope host and note the certificate, TLS versions offered and any downgrade behaviour on plain HTTP.", "examples": "openssl s_client -connect api.example.com:443 -servername api.example.com </dev/null\ncurl -skI http://api.example.com  # does it redirect to https?"},
+        {"check": "identify_auth_entrypoints", "title": "Identify Auth Entry Points", "description": "Locate the endpoints that issue, refresh or validate credentials (token issuance, OAuth flows, API-key headers, mTLS). Note the exact header/cookie/body field each expects.", "examples": "curl -s https://api.example.com/auth/token -d '...'\nGrep client/docs for 'Authorization:', 'X-Api-Key', 'client_credentials'"},
+        {"check": "authenticate_supplied_roles", "title": "Authenticate Every Role", "description": "Log in or mint a token once for every supplied role and save a working credential per role. Report any role that cannot authenticate -- authenticated testing depends on it.", "examples": "curl -s https://api.example.com/auth/token -d 'grant_type=client_credentials&client_id=...' \ncurl -s https://api.example.com/v2/me -H 'Authorization: Bearer <token>'  # confirm the token works"}
+      ]
+    },
+    {
+      "id": "initial_recon",
+      "icon": "<circle cx=\"11\" cy=\"11\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M20 20l-4-4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Initial Interface Recon",
+      "description": "Collect cheap interface knowledge: schemas, route lists, versions, base paths, content types, auth mechanisms and error formats. Add discovered API hosts or endpoint groups to endpoints.",
+      "steps": [
+        {"check": "collect_api_schemas", "title": "Collect API Schemas", "description": "Fetch any published OpenAPI/Swagger/GraphQL schema or API documentation. Note every resource, method and parameter it declares -- this is the fastest route to full coverage.", "examples": "curl -s https://api.example.com/v2/openapi.json | jq .\ncurl -s https://api.example.com/graphql -d '{\"query\":\"{__schema{types{name}}}\"}'"},
+        {"check": "identify_versions_and_base_paths", "title": "Identify Versions & Base Paths", "description": "Determine which API versions are live (v1, v2, beta, internal) and their base paths. Older or internal versions are often less hardened.", "examples": "curl -skI https://api.example.com/v1/health\ncurl -skI https://api.example.com/v2/health\ncurl -skI https://api.example.com/internal/health"},
+        {"check": "map_auth_and_content_types", "title": "Map Auth & Content Types", "description": "Note which auth scheme each route family expects and which content types it accepts/returns (JSON, XML, form, multipart, GraphQL). Mismatched or legacy content-type handling is a common weak spot.", "examples": "curl -s https://api.example.com/v2/users -H 'Accept: application/xml'\ncurl -s https://api.example.com/v2/users -H 'Content-Type: application/json' -d '{}'"},
+        {"check": "sample_error_formats", "title": "Sample Error Formats", "description": "Trigger a few obvious errors (bad auth, missing field, wrong method) and note the error shape -- stack traces, internal IDs, framework names or verbose messages are useful recon and may themselves be findings.", "examples": "curl -s https://api.example.com/v2/users/not-a-uuid\ncurl -s -X PATCH https://api.example.com/v2/users/1  # wrong method"}
+      ]
+    },
+    {
+      "id": "recon",
+      "icon": "<path d=\"M3 7l9-4 9 4-9 4-9-4z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M3 12l9 4 9-4M3 17l9 4 9-4\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linejoin=\"round\"/>",
+      "name": "Endpoint & Role Expansion",
+      "description": "Expand the known API surface with undocumented routes, alternate versions, role-specific visibility, hidden parameters and method variants. Repeat when new endpoints or roles appear.",
+      "steps": [
+        {"check": "enumerate_undocumented_routes", "title": "Enumerate Undocumented Routes", "repeatable": true, "description": "Fuzz for routes the schema/docs did not declare: alternate resource names, admin/internal prefixes, legacy paths. Filter against a baseline 404 response. At the end, add found endpoints through /api/v1/endpoint/..", "examples": "ffuf -u https://api.example.com/v2/FUZZ -w api-routes-seclists.txt -mc all -fs <baseline size>\ncurl -s https://api.example.com/v2/internal/health"},
+        {"check": "compare_role_endpoint_visibility", "title": "Compare Role Visibility", "repeatable": true, "description": "Hit the same route set with every role's credential and diff the responses (status codes, fields returned, 403 vs 404). Differences reveal hidden admin routes or inconsistent authorization.", "examples": "for role in anon user admin; do curl -s https://api.example.com/v2/admin/users -H \"Authorization: Bearer $TOKEN_$role\"; done"},
+        {"check": "discover_hidden_parameters", "title": "Discover Hidden Parameters", "repeatable": true, "description": "Fuzz query, body and header parameters on known endpoints for ones that change behaviour but are undocumented (debug flags, filters, includes, admin overrides).", "examples": "ffuf -u https://api.example.com/v2/users?FUZZ=1 -w param-names.txt -H 'Authorization: Bearer <token>'\nTry 'include=all', 'debug=true', 'fields=*' on documented list endpoints."},
+        {"check": "test_method_and_version_variants", "title": "Test Method & Version Variants", "repeatable": true, "description": "For every discovered route, try alternate HTTP methods and alternate version prefixes against the same resource. Inconsistent method support or a less-hardened older version is a common gap.", "examples": "curl -s -X PUT https://api.example.com/v2/users/1\ncurl -s https://api.example.com/v1/users/1  # does the old version still expose it?"}
+      ]
+    },
+    {
+      "id": "target_insights",
+      "icon": "<path d=\"M5 4h8a4 4 0 0 1 4 4v12H9a4 4 0 0 0-4-4V4z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M9 8h4M9 12h5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "API Model and Trust Boundary Understanding",
+      "description": "Understand resources, object identifiers, tenant boundaries, role model, state transitions, dangerous operations, async jobs, webhooks and import/export flows.",
+      "steps": [
+        {"check": "model_api_resources", "title": "Model the API Resources", "description": "List the core resources (users, orders, invoices, ...), how they relate, and which operations (CRUD) each role can perform on them. Build a clear mental model before testing access control.", "examples": "Resource map: Organization 1--* User, Organization 1--* Invoice, Invoice *--1 Customer"},
+        {"check": "identify_object_and_tenant_boundaries", "title": "Identify Object & Tenant Boundaries", "description": "Note how object ownership and tenant isolation are expressed -- sequential IDs, UUIDs, tenant headers, JWT claims. These are exactly what BOLA/tenant-isolation testing will target.", "examples": "Order IDs are sequential integers in the URL path -- good IDOR candidate.\nTenant is inferred from the JWT 'org_id' claim, not from the URL -- check if it can be forged or omitted."},
+        {"check": "map_state_changing_operations", "title": "Map State-Changing Operations", "description": "List every endpoint that mutates state or triggers a side effect (payments, emails, webhooks, async jobs, exports). These need extra care around replay, race conditions and authorization.", "examples": "POST /v2/orders/{id}/cancel -- irreversible, check idempotency\nPOST /v2/export -- async job, check who can read the result"},
+        {"check": "connect_api_model_to_initial_context", "title": "Connect to Initial Scope", "description": "Put the initial project information, scope and what you have learned about the API's model into perspective. Does it all make sense, or is something weird that deserves another look?"}
+      ]
+    },
+    {
+      "id": "free_recon",
+      "icon": "<circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M15 9l-2 4-4 2 2-4 4-2z\" fill=\"currentColor\"/>",
+      "name": "Free Agentic Recon",
+      "runs": 3,
+      "description": "Step back and look for recon gaps the structured steps missed. Recon only -- no security testing here.",
+      "steps": [
+        {"check": "free_api_recon", "repeatable": true, "title": "Free-form API recon based on notes", "description": "Read GET /api/v1/notes. Decide if anything important is still missing reconnaissance-wise for this API: an undocumented route family, a version variant, a content-type the schema didn't expose, a role whose surface you don't yet understand. Only act on real gaps. If nothing is missing, finish this step with status=skipped and an observation explaining why.", "examples": "Targeted: probe an `/internal/` path you saw mentioned in an error response; try a different Accept header on a documented route.\nSkipped: status=skipped, observations='Initial + expanded recon already mapped all documented + version variants; auth surfaces fingerprinted. No further recon needed.'"}
+      ]
+    },
+    {
+      "id": "modify_checklist",
+      "icon": "<rect x=\"5\" y=\"4\" width=\"14\" height=\"16\" rx=\"2\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M9 9h6M9 13h3M15 13v6M12 16h6\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Modify Checklist",
+      "description": "Disable irrelevant checks and add API-specific checks based on the discovered resources, roles, trust boundaries and business flows.",
+      "steps": [
+        {"check": "adjust_api_checklist", "title": "Mark irrelevant checks as 'not applicable' (use the API — do NOT just take notes)", "description": "Actually modify the project checklist via the API. Do NOT just write your thoughts into the notes — that does not change the checklist. For every check that does not apply to this specific API, mark it `not applicable` with a one-line observation explaining why.\n\nUse these endpoints (in this order):\n  GET  /api/v1/checklist/titles                       — slim list: id, title, scope, category\n  GET  /api/v1/checklist/filter?status=pending        — filter to only the ones still pending\n  GET  /api/v1/check/{check_id}                       — full detail incl. description/examples\n  PUT  /api/v1/check/{check_id}/status                — body: {\"status\": \"not applicable\"}\n  PUT  /api/v1/check/{check_id}/observations          — body: {\"observations\": \"why this does not apply\"}\n\nFinish this step only after you have gone through the checklist and acted on it. In observations of this step, summarise: how many checks you marked not-applicable and the rough categories.", "examples": "1) GET /api/v1/checklist/filter?status=pending&scope=global — review the global-checks first.\n2) For each irrelevant one, e.g. a webhook-replay check on an API that has no webhooks:\n     PUT /api/v1/check/webhook_replay_protection/status        body: {\"status\": \"not applicable\"}\n     PUT /api/v1/check/webhook_replay_protection/observations  body: {\"observations\": \"API has no webhook/async callback surface.\"}\n3) Repeat for per-endpoint checks that don't fit the resource model.\n4) Finish this step:\n     status='done', observations='Marked 5 checks NA (webhook family, multi-tenant isolation, file-upload virus checks) — rationale per check.'"}
+      ]
+    },
+    {
+      "id": "general_checks",
+      "kind": "checklist",
+      "icon": "<path d=\"M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M9 12l2 2 4-4\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
+      "name": "Work on Checklist",
+      "description": "Work through every 'global'-scope check on the project checklist. Pick a check, mark it focused via POST /api/v1/check/{id}/focus, set status + observations, then call POST /api/v1/check/{id}/finish. The phase advances only after every global-check is finished.",
+      "steps": [
+        {"check": "run_general_api_checks", "title": "Work the Global Checks", "repeatable": true, "description": "Work every global-scope check. Focus it, do real testing instead of trusting old notes, record what you did and found, then finish it. Keep going until every global-check is done. Any findings/weaknesses you find, immediately write an issue (or update an existing issue) using the /api/v1/finding API!", "examples": "POST /api/v1/check/{id}/focus\n...do the actual testing...\nPUT /api/v1/check/{id}/observations  {\"observations\": \"...\"}\nPOST /api/v1/check/{id}/finish"},
+        {"check": "adjust_api_checklist_runs", "title": "Increase Check Runs", "description": "Review the checklist against this target. For what checks would it make sense to have a deeper look -- auth, tenant isolation, injection on a complex resource model? Increase the runs for these checks to have a very thorough look at them!"}
+      ]
+    },
+    {
+      "id": "endpoint_testing",
+      "kind": "endpoint",
+      "icon": "<rect x=\"8\" y=\"7\" width=\"8\" height=\"12\" rx=\"4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M12 4v3M8 10H5M19 10h-3M8 14H4M20 14h-4M8 18H5M19 18h-3\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Endpoint Testing",
+      "description": "Work through endpoint and resource groups one by one, using the checklist for authorization, object access, input handling, mass assignment, data exposure, replay, race and resource-abuse coverage.",
+      "steps": [
+        {"check": "review_each_endpoint_group", "title": "Group by Resource", "repeatable": true, "description": "Sort the discovered endpoints into resource/feature groups so related routes are tested together. Put endpoints that belong to the same backend resource into the same group.", "examples": "POST /api/v1/feature-groups  {\"name\": \"Invoices\"}\nPUT /api/v1/endpoint/{id}/feature-group  {\"feature_group\": \"<group_id>\"}"},
+        {"check": "adjust_endpoint_runs", "title": "Increase Endpoint Runs", "description": "Review the endpoints of this target. For what endpoints would it make sense to have a deeper look -- high-value resources, complex state machines, payment or export flows? Increase the runs for these endpoints to have a very thorough look at them!"},
+        {"check": "run_endpoint_specific_checks", "title": "Test All Endpoints", "repeatable": true, "description": "Test every endpoint thoroughly, one resource group at a time. For each endpoint run the per-endpoint checks (authorization, object access, input handling, mass assignment, data exposure, replay, race, resource abuse), record observations and raw captures, set a status, then mark it tested. Any findings/weaknesses you find, immediately write an issue (or update an existing issue) using the /api/v1/finding API!", "examples": "POST /endpoint/{id}/focus -> POST /endpoint/{id}/checks-adjusted\nGET /workflow/endpoint-testing/current-step?endpoint_id={id}\n...test... PUT /check/{cid}/observations -> PUT /check/{cid}/status\nLoop until done, then POST /endpoint/{id}/unfocus."}
+      ]
+    },
+    {
+      "id": "free_testing",
+      "icon": "<path d=\"M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z\" fill=\"currentColor\"/><circle cx=\"19\" cy=\"5\" r=\"1.5\" fill=\"currentColor\"/><circle cx=\"5\" cy=\"19\" r=\"1.5\" fill=\"currentColor\"/>",
+      "name": "Free Testing",
+      "runs": 3,
+      "free": true,
+      "description": "Pursue unusual API behavior, protocol quirks, undocumented flows or weird combinations that do not fit the normal checklist flow.",
+      "steps": [
+        {"check": "free_api_testing", "title": "Free-Form API Testing", "repeatable": true, "description": "Follow up on anything the structured phases did not cover: a suspicious parameter, a business-logic flow, a race condition, a protocol quirk. Record what you try and what comes of it.", "examples": "curl an IDOR guess: curl -s https://api.example.com/v2/orders/1002 -H 'Authorization: Bearer <token>'\nReplay a state-changing request twice in parallel to check for a race condition."}
+      ]
+    },
+    {
+      "id": "attack_chaining",
+      "icon": "<path d=\"M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Attack-Chaining",
+      "description": "From the findings so far, decide whether endpoint discovery enables more object access testing, weak auth combines with data exposure, one role reveals IDs for another, or findings imply more recon.",
+      "steps": [
+        {"check": "review_api_findings_for_more_impact", "title": "Push Each Finding Further", "repeatable": true, "description": "For every finding, ask what the worst realistic outcome is and try to reach it within scope: read instead of detect, another tenant instead of another user, admin instead of user. Update the finding's severity and evidence with what you achieve.", "examples": "Excessive data exposure -> does it leak another tenant's records?\nBOLA on read -> does the same ID work on update/delete?"},
+        {"check": "run_recon_from_api_findings", "title": "Recon From Findings", "repeatable": true, "description": "Use what the findings exposed (leaked IDs, internal hostnames, stack traces, tokens) as new recon input. Add new endpoints through /api/v1/endpoint/.. and note new hosts for the operator if they are out of scope.", "examples": "A stack trace reveals an internal service name -> search for its public routes.\nA leaked refresh token -> test whether it works across roles."},
+        {"check": "map_api_findings_to_other_checks", "title": "Map to Other Checks", "repeatable": true, "description": "Check whether each finding's root cause also applies elsewhere: the same missing ownership check on sibling resources, the same unsanitised parameter in other endpoints. Re-open and update the affected checks and endpoints.", "examples": "Missing ownership check on /v2/invoices/{id} -> test /v2/quotes/{id}, /v2/orders/{id}"},
+        {"check": "test_api_attack_chains", "title": "Test Attack Chains", "repeatable": true, "description": "Combine weak signals and low findings into a chain with real impact and test it end to end. Write a finding for the chain itself, referencing the individual findings, with the full reproduction.", "examples": "Predictable IDs + missing auth on read -> enumerate every tenant's invoices\nWeak rate limiting + credential stuffing resistance gap -> account takeover"}
+      ]
+    },
+    {
+      "id": "additional_work",
+      "icon": "<circle cx=\"11\" cy=\"11\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M20 20l-4-4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M11 8.5v5M8.5 11h5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Additional Work",
+      "description": "Before writing anything up, do the extra work that pays off: dig deeper where a vulnerability is likely hiding, then prune anything that will not hold up. Only confirmed, reproducible issues should reach Finding Writing.",
+      "steps": [
+        {"check": "deep_dive_vuln_search", "title": "Deep-Dive Where It Pays Off", "repeatable": true, "description": "Read GET /api/v1/notes and review the testing so far, then pick the spots where a deeper vulnerability hunt is worth it -- a high-value endpoint, a suspicious parameter, a half-explored auth or business-logic flow. Dig into those hard and test them properly. If nothing warrants a deeper look, finish with status=skipped. Change the checklist checks and endpoint observations if you found new facts.", "examples": "Re-examine an endpoint that returned odd errors with more aggressive, targeted payloads.\nChain two weak signals from earlier phases into a real exploitation attempt.\nSkipped: status=skipped, observations='Coverage was thorough; no area warrants a deeper dive.'"},
+        {"check": "identify_false_positives", "title": "Identify False Positives", "repeatable": true, "description": "Go back over every suspected vulnerability and reproduce it from scratch. Discard anything that does not hold up as a false positive, and keep a clean reproduction plus evidence for the ones that do. Record the verdict for each so Finding Writing only sees confirmed, reproducible issues.", "examples": "Re-run the exact request that triggered the issue and confirm the result is consistent.\nDiscard a 'finding' that only fired once and cannot be reproduced.\nNote the confirmed repro steps so Finding Writing can lift them directly."}
+      ]
+    },
+    {
+      "id": "finishing_up",
+      "icon": "<path d=\"M5 3v18\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M5 4h13l-3 4 3 4H5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/>",
+      "name": "Finding Writing",
+      "description": "Turn every confirmed vulnerability into a clear, evidenced finding, then summarize tested API surfaces, untested or blocked areas and recommended follow-up.",
+      "steps": [
+        {"check": "write_findings", "title": "Write Up Findings", "repeatable": true, "description": "Create a finding for every confirmed vulnerability with a clear title, a severity and a description of impact and reproduction. Attach the supporting raw captures so each finding stands on its own. The description should start with 1) What is the problem in simple non-technical words then 2) A 'so-what' section that explains why this is a problem and then 3) more technical details. The recommendation should offer the proper fix and also quick fixes as an alternative if the proper fix is very work intensive.", "examples": "POST /api/v1/finding  {\"title\": \"BOLA on GET /v2/invoices/{id}\", \"severity\": \"high\", \"description\": \"...\"}\nPUT /api/v1/finding/{id}/raw-captures  (attach request/response evidence)"},
+        {"check": "attach_finding_screenshots", "title": "Screenshot Medium+ Findings", "description": "Every finding rated medium, high or critical must carry at least one screenshot or request/response capture as evidence. Review each finding's severity and attach a raw capture to any that is medium or higher. Findings rated info or low do not require one. This is important.", "examples": "GET /api/v1/findings  (review each finding's severity)\nPOST /api/v1/finding/{id}/raw-captures  (attach a screenshot or captured request/response for each medium-or-higher finding)"},
+        {"check": "share_api_test_thoughts", "title": "Summarize the Engagement", "description": "Summarize tested API surfaces, untested or blocked areas, highest-risk flows, assumptions and recommended follow-up."}
+      ]
+    }
+  ]
+}

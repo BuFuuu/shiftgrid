@@ -1,0 +1,130 @@
+{# Workflow + checklist preview fragment, fetched into the new-project form's
+   preview modal (styles and tab behaviour live in _new_project_form.html). #}
+<div class="dp-tabs" role="tablist">
+  <button type="button" class="dp-tab" role="tab" data-dp-tab="workflow" aria-selected="true">
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="15" y="15" width="6" height="6" rx="1.5"/><path d="M6 9v3a3 3 0 0 0 3 3h6"/></svg>
+    <span>Workflow</span>
+    <span class="dp-tab-count">{{ workflow.phases | length }} phases</span>
+  </button>
+  <button type="button" class="dp-tab" role="tab" data-dp-tab="checklist" aria-selected="false">
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
+    <span>Checklist</span>
+    <span class="dp-tab-count">{{ checklist.item_count }} checks</span>
+  </button>
+</div>
+
+<section class="dp-pane" role="tabpanel" data-dp-pane="workflow">
+  <div class="dp-head">
+    <h3>{{ workflow.name }}</h3>
+    <div class="dp-stats">
+      <span class="pill">{{ workflow.phases | length }} phases</span>
+      <span class="pill">{{ workflow.step_count }} steps</span>
+      {% if workflow.gate_count %}<span class="pill" title="Phases only the human operator can advance">{{ workflow.gate_count }} operator gates</span>{% endif %}
+    </div>
+  </div>
+  <ol class="dp-timeline">
+    {% for phase in workflow.phases %}
+      <li class="dp-phase" style="--c: {{ phase.color }}">
+        <div class="dp-marker" aria-hidden="true">
+          <span class="dp-num">{{ loop.index }}</span>
+          <svg viewBox="0 0 24 24" width="13" height="13">{% if phase.icon %}{{ phase.icon | safe }}{% else %}<circle cx="12" cy="12" r="4" fill="currentColor"/>{% endif %}</svg>
+        </div>
+        <div class="dp-phase-body">
+          <div class="dp-phase-title">
+            <strong>{{ phase.name }}</strong>
+            {% if phase.optional %}<span class="pill">optional</span>{% endif %}
+            {% if phase.operator_gate %}
+              <span class="dp-gate" title="Only the human operator can advance past this phase">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg>
+                operator gate
+              </span>
+            {% endif %}
+            <span class="dp-count">{{ phase.steps | length }} step{{ '' if phase.steps | length == 1 else 's' }}</span>
+          </div>
+          {% if phase.description %}<p class="dp-desc">{{ phase.description }}</p>{% endif %}
+          {% if phase.steps %}
+            {% set phase_no = loop.index %}
+            <ol class="dp-steps">
+              {% for step in phase.steps %}
+                <li>
+                  {% set has_more = step.description or step.examples %}
+                  {% if has_more %}<details>{% endif %}
+                  <{{ 'summary' if has_more else 'div' }} class="dp-step-row">
+                    <span class="dp-step-no">{{ phase_no }}.{{ loop.index }}</span>
+                    <span class="dp-step-title">{{ step.title }}</span>
+                    {% if step.repeatable %}
+                      <span class="dp-step-repeat" title="Repeatable: can be run more than once">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+                      </span>
+                    {% endif %}
+                    {% if has_more %}
+                      <svg class="dp-step-chevron" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    {% endif %}
+                  </{{ 'summary' if has_more else 'div' }}>
+                  {% if has_more %}
+                    <div class="dp-step-more">
+                      {% if step.description %}<p>{{ step.description }}</p>{% endif %}
+                      {% if step.examples %}<pre>{{ step.examples }}</pre>{% endif %}
+                    </div>
+                    </details>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ol>
+          {% endif %}
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+</section>
+
+<section class="dp-pane" role="tabpanel" data-dp-pane="checklist" hidden>
+  <div class="dp-head">
+    <h3>{{ checklist.name }}</h3>
+    <div class="dp-stats">
+      <span class="pill">{{ checklist.item_count }} checks</span>
+      <span class="pill">{{ checklist.categories | length }} categories</span>
+      <span class="pill" title="Checked once for the whole target">{{ checklist.item_count - checklist.per_endpoint_count }} global</span>
+      <span class="pill" title="Checked on every endpoint">{{ checklist.per_endpoint_count }} per endpoint</span>
+    </div>
+  </div>
+  <div class="dp-dist" role="img" aria-label="Checks per category">
+    {% for cat in checklist.categories %}
+      <span style="flex: {{ cat['items'] | length }}; background: {{ cat.color }}" title="{{ cat.name }}: {{ cat['items'] | length }}"></span>
+    {% endfor %}
+  </div>
+  <div class="dp-cats">
+    {% for cat in checklist.categories %}
+      <article class="dp-cat" style="--c: {{ cat.color }}">
+        <header>
+          <span class="dp-dot" aria-hidden="true"></span>
+          <strong>{{ cat.name }}</strong>
+          <span class="dp-count">{{ cat['items'] | length }}</span>
+        </header>
+        <ul>
+          {% for item in cat['items'] %}
+            <li>
+              {% if item.description or item.examples %}
+                <details>
+                  <summary>
+                    <span class="dp-item-title">{{ item.title }}</span>
+                    <span class="dp-scope{% if item.per_endpoint %} per-endpoint{% endif %}">{{ 'per endpoint' if item.per_endpoint else 'global' }}</span>
+                  </summary>
+                  <div class="dp-item-more">
+                    {% if item.description %}<p>{{ item.description }}</p>{% endif %}
+                    {% if item.examples %}<pre>{{ item.examples }}</pre>{% endif %}
+                  </div>
+                </details>
+              {% else %}
+                <div class="dp-item-row">
+                  <span class="dp-item-title">{{ item.title }}</span>
+                  <span class="dp-scope{% if item.per_endpoint %} per-endpoint{% endif %}">{{ 'per endpoint' if item.per_endpoint else 'global' }}</span>
+                </div>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </article>
+    {% endfor %}
+  </div>
+</section>

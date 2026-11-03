@@ -1,0 +1,35 @@
+{
+  "id": "web_service",
+  "name": "Web Service / API Security Checklist",
+  "common": true,
+  "items": [
+    {"id": "api_endpoint_responds", "title": "Endpoint responds", "category": "discovery_documentation", "category_name": "Discovery & Documentation", "scope": "per_endpoint"},
+    {"id": "api_schema_available", "title": "Schema available", "category": "discovery_documentation", "category_name": "Discovery & Documentation", "scope": "global"},
+    {"id": "api_undocumented_endpoints", "title": "Undocumented endpoints", "category": "discovery_documentation", "category_name": "Discovery & Documentation", "scope": "global"},
+    {"id": "api_versioning_review", "title": "Versioning", "category": "discovery_documentation", "category_name": "Discovery & Documentation", "scope": "global"},
+
+    {"id": "api_auth_missing_auth", "title": "Missing auth", "category": "authentication", "category_name": "Authentication", "scope": "per_endpoint"},
+    {"id": "api_auth_weak_token_handling", "title": "Weak token handling", "category": "authentication", "category_name": "Authentication", "scope": "global"},
+    {"id": "api_auth_bypass", "title": "Auth bypass", "category": "authentication", "category_name": "Authentication", "scope": "per_endpoint"},
+    {"id": "api_auth_credential_stuffing_resistance", "title": "Credential stuffing resistance", "category": "authentication", "category_name": "Authentication", "scope": "global"},
+
+    {"id": "api_authz_bola", "title": "BOLA", "category": "authorization", "category_name": "Authorization", "scope": "per_endpoint"},
+    {"id": "api_authz_bfla", "title": "BFLA", "category": "authorization", "category_name": "Authorization", "scope": "per_endpoint"},
+    {"id": "api_authz_tenant_isolation", "title": "Tenant isolation", "category": "authorization", "category_name": "Authorization", "scope": "per_endpoint"},
+    {"id": "api_authz_privilege_escalation", "title": "Privilege escalation", "category": "authorization", "category_name": "Authorization", "scope": "global"},
+
+    {"id": "api_input_injection", "title": "Injection", "category": "input_protocol_validation", "category_name": "Input & Protocol Validation", "scope": "per_endpoint"},
+    {"id": "api_input_schema_validation", "title": "Schema validation", "category": "input_protocol_validation", "category_name": "Input & Protocol Validation", "scope": "per_endpoint"},
+    {"id": "api_input_verb_tampering", "title": "Verb tampering", "category": "input_protocol_validation", "category_name": "Input & Protocol Validation", "scope": "per_endpoint"},
+    {"id": "api_input_content_type_abuse", "title": "Content-type abuse", "category": "input_protocol_validation", "category_name": "Input & Protocol Validation", "scope": "per_endpoint"},
+
+    {"id": "api_abuse_rate_limiting", "title": "Rate limiting", "category": "abuse_controls", "category_name": "Abuse Controls", "scope": "global"},
+    {"id": "api_abuse_resource_exhaustion", "title": "Resource exhaustion", "category": "abuse_controls", "category_name": "Abuse Controls", "scope": "per_endpoint"},
+    {"id": "api_abuse_replay", "title": "Replay", "category": "abuse_controls", "category_name": "Abuse Controls", "scope": "per_endpoint"},
+    {"id": "api_abuse_bulk_operations", "title": "Bulk operations", "category": "abuse_controls", "category_name": "Abuse Controls", "scope": "per_endpoint"},
+
+    {"id": "api_data_excessive_exposure", "title": "Excessive data exposure", "category": "data_exposure", "category_name": "Data Exposure", "scope": "per_endpoint"},
+    {"id": "api_data_sensitive_errors", "title": "Sensitive errors", "category": "data_exposure", "category_name": "Data Exposure", "scope": "per_endpoint"},
+    {"id": "api_data_logging_leaks", "title": "Logging leaks", "category": "data_exposure", "category_name": "Data Exposure", "scope": "global"}
+  ]
+}

@@ -202,9 +202,13 @@ def create_app(
         lock_scope_on_create=lock_scope_on_create,
         notes_template=notes_template,
     )
-    # Display path: host-side folder under Docker (HOST_PROJECTS_DIR), else the
-    # resolved local path.
-    default_projects_dir = host_prefix or str(default_base.expanduser().resolve())
+    # Display path: host-side folder under Docker (HOST_PROJECTS_DIR, flattened to
+    # one separator style like every other displayed path), else the resolved
+    # local path.
+    if host_prefix:
+        default_projects_dir = service._display_path(Path(service._container_prefix))
+    else:
+        default_projects_dir = str(default_base.expanduser().resolve())
 
     # Single-project mode: open an existing project at startup so the app comes
     # up already loaded (no project -> landing page handles creation).
@@ -259,7 +263,37 @@ def run(app: FastAPI) -> None:
         uvicorn.Server(uvicorn.Config(app.state.api_app, host=host, port=api_port, log_config=log_config)),
     ]
 
+    async def _note_bind_address():
+        # Printed once both servers are up, i.e. right under uvicorn's own
+        # "Uvicorn running on http://<host>:<port>" lines, to explain them.
+        while not all(s.started for s in servers):
+            if any(s.should_exit for s in servers):
+                return
+            await asyncio.sleep(0.05)
+        note = _bind_address_note(host)
+        if note:
+            print(note, flush=True)
+
     async def _serve():
-        await asyncio.gather(*(s.serve() for s in servers))
+        await asyncio.gather(*(s.serve() for s in servers), _note_bind_address())
 
     asyncio.run(_serve())
+
+
+def _bind_address_note(host: str) -> str | None:
+    """Explain uvicorn's listen address. Inside Docker, 0.0.0.0 is the container's
+    own interfaces — what the host exposes is decided by the compose `ports:`
+    mapping. Outside Docker, 0.0.0.0 really is every interface of this machine."""
+    if host not in ("0.0.0.0", "::"):
+        return None
+    if Path("/.dockerenv").exists():
+        return (
+            f"NOTE: {host} above is the listen address inside the container, not on your host.\n"
+            "      Which host interfaces are exposed is set by the `ports:` mapping in\n"
+            "      docker-compose.yml (127.0.0.1 only, as shipped)."
+        )
+    red, reset = "\033[1;31m", "\033[0m"
+    return (
+        f"{red}WARNING: listening on ALL network interfaces of this machine ({host}).{reset}\n"
+        f"{red}         There is no authentication: start with HOST=127.0.0.1 unless you mean it.{reset}"
+    )

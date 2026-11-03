@@ -1,0 +1,138 @@
+{
+  "id": "network_infrastructure",
+  "name": "Network Infrastructure",
+  "common": true,
+  "checklist": "network_infrastructure",
+  "phases": [
+    {
+      "id": "scope_definition",
+      "icon": "<circle cx=\"12\" cy=\"12\" r=\"8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><circle cx=\"12\" cy=\"12\" r=\"3\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M12 1v4M12 19v4M1 12h4M19 12h4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Scope, Context & Rules of Engagement",
+      "description": "Confirm IP ranges, hostnames, excluded systems, allowed scan intensity, exploit validation depth, credential availability, maintenance windows and segmentation assumptions.",
+      "human_advance": true,
+      "steps": [
+        {"check": "set_network_boundaries"},
+        {"check": "record_rules_of_engagement"},
+        {"check": "record_network_context_and_credentials"}
+      ]
+    },
+    {
+      "id": "reachability",
+      "icon": "<path d=\"M5 12.5a10 10 0 0 1 14 0M8 16a6 6 0 0 1 8 0\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\"/><circle cx=\"12\" cy=\"19\" r=\"1.5\" fill=\"currentColor\"/>",
+      "name": "Reachability & Scope Validation",
+      "description": "Determine what is alive and reachable without over-scanning. Confirm discovered hosts are in scope before adding them as endpoints.",
+      "steps": [
+        {"check": "confirm_hosts_in_scope"},
+        {"check": "check_safe_reachability"},
+        {"check": "add_confirmed_hosts_to_endpoints"}
+      ]
+    },
+    {
+      "id": "initial_recon",
+      "icon": "<circle cx=\"11\" cy=\"11\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M20 20l-4-4\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Initial Host & Service Recon",
+      "description": "Run low-impact discovery: top ports, basic service and version detection, DNS and reverse DNS, TLS banners and obvious management planes. Add hosts and services as endpoints.",
+      "steps": [
+        {"check": "run_low_impact_port_discovery"},
+        {"check": "identify_basic_services"},
+        {"check": "collect_dns_and_certificate_names"},
+        {"check": "identify_obvious_management_surfaces"}
+      ]
+    },
+    {
+      "id": "recon",
+      "icon": "<path d=\"M3 7l9-4 9 4-9 4-9-4z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M3 12l9 4 9-4M3 17l9 4 9-4\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linejoin=\"round\"/>",
+      "name": "Expanded Enumeration",
+      "description": "Do deeper enumeration where allowed: full TCP and UDP scans, service-specific enumeration, SMB, LDAP, NFS, SNMP, SSH, RDP, HTTP admin surfaces, certificate names and neighboring exposed services.",
+      "optional": true,
+      "steps": [
+        {"check": "run_deeper_port_enumeration", "repeatable": true},
+        {"check": "run_service_specific_enumeration", "repeatable": true},
+        {"check": "enumerate_management_and_identity_surfaces", "repeatable": true},
+        {"check": "expand_endpoint_map_from_infrastructure_recon", "repeatable": true}
+      ]
+    },
+        {
+      "id": "free_recon",
+      "icon": "<circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M15 9l-2 4-4 2 2-4 4-2z\" fill=\"currentColor\"/>",
+      "name": "Free Agentic Recon",
+      "description": "Check out the notes and then: Anything you think would make sense to do that is missing reconnaissance wise? Any tools to execute? Do not do anything that is not rerally needed!",
+      "steps": [
+        {"check": "free_infrastructure_recon", "repeatable": true, "title": "Free-form infrastructure recon based on notes", "description": "Read GET /api/v1/notes. Decide if anything important is still missing reconnaissance-wise for this infrastructure: a service whose version wasn't pinned, a host whose role is unclear, a management interface that wasn't probed, a trust relationship that wasn't tested. Only act on real gaps and within the rules of engagement. If nothing is missing, finish this step with status=skipped and an observation explaining why.", "examples": "Targeted: a `-sV --version-intensity 7` follow-up on one port whose banner was ambiguous; an SMB null-session probe on one host where signing status was unknown.\nSkipped: status=skipped, observations='Reachability + deeper enumeration already covered all in-scope hosts; service versions pinned; management surfaces mapped. No further recon needed.'"}
+      ]
+    },
+    {
+      "id": "target_insights",
+      "icon": "<path d=\"M5 4h8a4 4 0 0 1 4 4v12H9a4 4 0 0 0-4-4V4z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M9 8h4M9 12h5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Infrastructure Understanding",
+      "description": "Build a model of host roles, exposed trust boundaries, management networks, likely critical systems, authentication surfaces, shared services and segmentation points.",
+      "steps": [
+        {"check": "map_host_roles_and_services"},
+        {"check": "identify_trust_boundaries_and_segments"},
+        {"check": "identify_critical_systems_and_shared_services"},
+        {"check": "connect_infrastructure_model_to_scope"}
+      ]
+    },
+    {
+      "id": "modify_checklist",
+      "icon": "<rect x=\"5\" y=\"4\" width=\"14\" height=\"16\" rx=\"2\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M9 9h6M9 13h3M15 13v6M12 16h6\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Modify Checklist",
+      "description": "Disable irrelevant checks and add target-specific host or service checks based on discovered protocols, architecture, trust boundaries and allowed validation depth.",
+      "steps": [
+        {"check": "adjust_infrastructure_checklist", "title": "Mark irrelevant checks as 'not applicable' (use the API — do NOT just take notes)", "description": "Actually modify the project checklist via the API. Do NOT just write your thoughts into the notes — that does not change the checklist. For every check that does not apply to this specific infrastructure, mark it `not applicable` with a one-line observation explaining why.\n\nUse these endpoints (in this order):\n  GET  /api/v1/checklist/titles                       — slim list: id, title, scope, category\n  GET  /api/v1/checklist/filter?status=pending        — filter to only the ones still pending\n  GET  /api/v1/check/{check_id}                       — full detail incl. description/examples\n  PUT  /api/v1/check/{check_id}/status                — body: {\"status\": \"not applicable\"}\n  PUT  /api/v1/check/{check_id}/observations          — body: {\"observations\": \"why this does not apply\"}\n\nFinish this step only after you have gone through the checklist and acted on it. In observations of this step, summarise: how many checks you marked not-applicable and the rough categories.", "examples": "1) GET /api/v1/checklist/filter?status=pending&scope=global — review the global-checks first.\n2) For each irrelevant one, e.g. an SMB-relay check on a network without any SMB services:\n     PUT /api/v1/check/smb_relay_attack/status        body: {\"status\": \"not applicable\"}\n     PUT /api/v1/check/smb_relay_attack/observations  body: {\"observations\": \"No SMB (TCP/445) services discovered in scope.\"}\n3) Repeat for service-specific checks that don't match the discovered protocols.\n4) Finish this step:\n     status='done', observations='Marked 9 checks NA (SMB family, NFS, LDAP-anon, SNMPv2c, IPMI) — rationale per check.'"}
+      ]
+    },
+    {
+      "id": "general_checks",
+      "kind": "checklist",
+      "icon": "<path d=\"M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M9 12l2 2 4-4\" stroke=\"currentColor\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>",
+      "name": "Work on Checklist",
+      "description": "Work through every 'global'-scope check on the project checklist. Pick a check, mark it focused via POST /api/v1/check/{id}/focus, set status + observations, then call POST /api/v1/check/{id}/finish. The phase advances only after every global-check is finished.",
+      "steps": [
+        {"check": "run_general_infrastructure_checks", "repeatable": true}
+      ]
+    },
+    {
+      "id": "specific_checks",
+      "kind": "endpoint",
+      "icon": "<rect x=\"8\" y=\"7\" width=\"8\" height=\"12\" rx=\"4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M12 4v3M8 10H5M19 10h-3M8 14H4M20 14h-4M8 18H5M19 18h-3\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Service and Host-Specific Checks",
+      "description": "Work host and service endpoints one by one, using the checklist for misconfigurations, default credentials, weak protocols, known CVEs, anonymous access and risky administration interfaces.",
+      "steps": [
+        {"check": "review_each_host_and_service", "repeatable": true},
+        {"check": "run_service_specific_checks", "repeatable": true}
+      ]
+    },
+    {
+      "id": "free_testing",
+      "icon": "<path d=\"M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z\" fill=\"currentColor\"/><circle cx=\"19\" cy=\"5\" r=\"1.5\" fill=\"currentColor\"/><circle cx=\"5\" cy=\"19\" r=\"1.5\" fill=\"currentColor\"/>",
+      "name": "Free Testing",
+      "description": "Explore promising anomalies, unusual services or suspicious trust relationships that do not fit the normal checklist flow.",
+      "free": true,
+      "steps": [
+        {"check": "free_infrastructure_testing", "repeatable": true}
+      ]
+    },
+    {
+      "id": "attack_chaining",
+      "icon": "<path d=\"M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/>",
+      "name": "Attack-Chaining and Pivot Reasoning",
+      "description": "From the findings so far, decide whether one service exposes credentials for another, management access implies lateral movement risk, discovered hostnames require more recon, or findings validate segmentation issues.",
+      "steps": [
+        {"check": "review_infrastructure_findings_for_more_impact", "repeatable": true},
+        {"check": "run_recon_from_infrastructure_findings", "repeatable": true},
+        {"check": "map_infrastructure_findings_to_other_checks", "repeatable": true},
+        {"check": "test_safe_attack_paths", "repeatable": true}
+      ]
+    },
+    {
+      "id": "finishing_up",
+      "icon": "<path d=\"M5 3v18\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/><path d=\"M5 4h13l-3 4 3 4H5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"/>",
+      "name": "Finishing Up",
+      "description": "Summarize coverage, untested ranges or services, risk clusters, likely attack paths and evidence quality.",
+      "steps": [
+        {"check": "share_infrastructure_test_thoughts"}
+      ]
+    }
+  ]
+}

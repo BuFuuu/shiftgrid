@@ -1,0 +1,114 @@
+{
+  "id": "confluence-sensitive-info",
+  "name": "Confluence Sensitive-Information Discovery",
+  "items": [
+    {
+      "id": "instance_anonymous_access",
+      "title": "Anonymous / all-employee exposure",
+      "category": "exposure",
+      "category_name": "Exposure & Access Hygiene",
+      "scope": "global",
+      "description": "Identify spaces readable by anonymous users or by every logged-in employee. Sensitive content in these spaces is effectively public to the whole org (or the internet). Map which spaces have the widest audience so their content is prioritised for search.",
+      "examples": "List spaces with the anonymous-access permission enabled.\nList spaces granted to the 'confluence-users' / all-employees group.\nRecord the audience size next to each space in the ledger."
+    },
+    {
+      "id": "instance_external_guests",
+      "title": "External / guest account reach",
+      "category": "exposure",
+      "category_name": "Exposure & Access Hygiene",
+      "scope": "global",
+      "description": "Enumerate external, guest and contractor accounts and what spaces they can reach. Sensitive data visible to external accounts is a common oversharing failure. Confirm the audit's own auth context first: 'exposed to whom' depends on which user you are searching as.",
+      "examples": "List guest/external users and their space grants.\nSearch as a low-privilege / external account and diff the results against an admin view.\nNote any sensitive space an external account can read."
+    },
+    {
+      "id": "instance_personal_spaces",
+      "title": "Personal spaces oversharing",
+      "category": "exposure",
+      "category_name": "Exposure & Access Hygiene",
+      "scope": "global",
+      "description": "Personal spaces are frequently left open and used to stash credentials, tokens and drafts. Sweep personal spaces specifically rather than assuming they are private.",
+      "examples": "CQL: type = page AND space.type = personal\nSearch personal spaces for the secrets and PII dictionaries.\nFlag any personal space with a broad audience."
+    },
+    {
+      "id": "global_secret_sweep",
+      "title": "Instance-wide secret sweep",
+      "category": "secrets",
+      "category_name": "Credentials & Secrets",
+      "scope": "global",
+      "description": "Run instance-wide searches for credentials and machine secrets across all in-scope spaces. Cover passwords, API keys, tokens, private keys and connection strings. Log every query and every hit to the ledger; broaden terms rather than stopping early.",
+      "examples": "CQL/text: password, passwd, api_key, apikey, secret, token, Bearer, BEGIN RSA PRIVATE KEY, AKIA, xoxb-, connectionstring\nTry synonyms, abbreviations, misspellings and other languages.\nRecord page URL + space + audience for each hit."
+    },
+    {
+      "id": "global_pii_sweep",
+      "title": "Instance-wide PII sweep",
+      "category": "pii",
+      "category_name": "Personal & Regulated Data",
+      "scope": "global",
+      "description": "Search all in-scope spaces for personal and regulated data: employee records, salaries, home addresses, ID/passport numbers, customer data. Note the applicable sensitivity (GDPR/PII) and who can currently read it.",
+      "examples": "Text: salary, IBAN, passport, date of birth, employee ID, home address, personal data\nSearch HR / onboarding / finance spaces specifically.\nRecord the data category and audience per hit."
+    },
+    {
+      "id": "global_infra_sweep",
+      "title": "Instance-wide infrastructure / access sweep",
+      "category": "infra",
+      "category_name": "Infrastructure & Access Docs",
+      "scope": "global",
+      "description": "Search for internal architecture, network topology, hostnames, and 'how to access X' runbooks that hand an attacker a map or a foothold. These are high value even without a raw credential.",
+      "examples": "Text: VPN, jump host, bastion, ssh, internal hostname patterns, 'how to access', runbook, admin, kubeconfig\nCollect network diagrams and admin runbooks.\nNote what each doc would give an attacker."
+    },
+    {
+      "id": "space_credentials_search",
+      "title": "Search space for credentials/secrets",
+      "category": "secrets",
+      "category_name": "Credentials & Secrets",
+      "scope": "per_endpoint",
+      "description": "Search this space specifically for credentials and machine secrets using the full secrets dictionary. Space-scoped search catches hits the instance-wide sweep buried or ranked low. Do not finish until every secrets term has been tried against this space.",
+      "examples": "CQL: text ~ 'password' AND space = <KEY>\nWalk the page tree; do not rely on search ranking alone.\nRecord each hit with page URL and the surrounding context."
+    },
+    {
+      "id": "space_pii_search",
+      "title": "Search space for PII / regulated data",
+      "category": "pii",
+      "category_name": "Personal & Regulated Data",
+      "scope": "per_endpoint",
+      "description": "Search this space for personal and regulated data using the PII dictionary. Prioritise HR, finance, onboarding and customer spaces, but check every in-scope space.",
+      "examples": "CQL: text ~ 'salary' AND space = <KEY>\nOpen tables and exported reports embedded in pages.\nRecord data category and audience per hit."
+    },
+    {
+      "id": "space_infra_access_search",
+      "title": "Search space for infra / access docs",
+      "category": "infra",
+      "category_name": "Infrastructure & Access Docs",
+      "scope": "per_endpoint",
+      "description": "Search this space for network diagrams, hostnames, credentials-to-systems runbooks and access instructions. Capture anything that would help an attacker move laterally.",
+      "examples": "CQL: text ~ 'VPN' OR text ~ 'runbook' AND space = <KEY>\nReview any 'Onboarding' or 'IT' page trees in full.\nNote the systems each doc references."
+    },
+    {
+      "id": "space_attachments_search",
+      "title": "Review space attachments",
+      "category": "attachments",
+      "category_name": "Attachments & Non-Text",
+      "scope": "per_endpoint",
+      "description": "Enumerate this space's attachments and inspect names and bodies for secrets and PII. Attachments are where real secrets hide: config files, key material, exported spreadsheets and diagrams.",
+      "examples": "CQL: type = attachment AND space = <KEY>\nFlag names: .env, .pem, .pfx, id_rsa, .kubeconfig, .sql, .xlsx, .pcap, backup\nDownload and grep suspicious files for keys/PII."
+    },
+    {
+      "id": "space_permissions_review",
+      "title": "Review space permissions vs. content",
+      "category": "exposure",
+      "category_name": "Exposure & Access Hygiene",
+      "scope": "per_endpoint",
+      "description": "Compare this space's audience against the sensitivity of what it holds. A password in a space two admins can read is a different severity than one in an all-company space. Record the audience so findings can be scored correctly.",
+      "examples": "List the groups/users granted read on the space.\nNote whether anonymous or all-employees can read it.\nSet severity context: sensitivity x audience size."
+    },
+    {
+      "id": "space_comments_versions",
+      "title": "Check comments and old page versions",
+      "category": "secrets",
+      "category_name": "Credentials & Secrets",
+      "scope": "per_endpoint",
+      "description": "Sensitive data often lives in page comments or in older versions that were 'redacted' in the current view but remain in history. Check comments and the version history of high-value pages in this space.",
+      "examples": "Read comments on credential/runbook pages.\nOpen page history and diff older revisions for removed secrets.\nRecord any secret still retrievable from history."
+    }
+  ]
+}

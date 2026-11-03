@@ -1,0 +1,65 @@
+{% extends "project_base.html" %}
+{% import "_workflow_type.html" as workflow_type %}
+{% from "_new_project_form.html" import new_project_form with context %}
+{% block title %}Projects - {{ project.name }}{% endblock %}
+{% block content_class %}projects-content{% endblock %}
+{% block content %}
+<section class="panel projects-panel">
+  <div class="panel-head">
+    <h1>New project</h1>
+  </div>
+  {{ new_project_form(workflows, checklists, default_path, "Create and switch") }}
+</section>
+
+<section class="panel projects-panel">
+  <div class="panel-head">
+    <h1>Projects</h1>
+    <span class="muted small">{{ projects | length }} found</span>
+  </div>
+  {% if projects %}
+    <div class="project-list">
+      {% for item in projects %}
+        <article class="project-card {% if item.loaded %}loaded{% endif %}">
+          <div class="project-card-icon workflow-type-{{ item.workflow }}">
+            {{ workflow_type.workflow_type_icon(item.workflow) }}
+          </div>
+          <div class="project-card-main">
+            <div class="project-card-title">
+              <span>{{ item.name }}</span>
+              {% if item.loaded %}<span class="pill">current</span>{% endif %}
+            </div>
+            <div class="project-card-path muted small"><code>{{ item.path }}</code></div>
+            <div class="project-card-meta">
+              {{ workflow_type.workflow_type_badge(item.workflow, item.workflow_name) }}
+              <span class="pill">{{ item.scope_count }} scope</span>
+              {% if item.created_at %}
+                <span class="pill timestamp-pill" title="Created">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                  <span>{{ item.created_at | fmt_dt }}</span>
+                </span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="project-card-actions">
+            {% if item.loaded %}
+              <button class="btn" type="button" disabled>Loaded</button>
+            {% else %}
+              <form method="post" action="{{ url_for('management.switch_project') }}">
+                <input type="hidden" name="path" value="{{ item.path }}">
+                <button class="btn primary" type="submit">Switch</button>
+              </form>
+            {% endif %}
+            <a class="btn" href="{{ url_for('management.backup_project', id=item.id) }}">Backup</a>
+            <form method="post" action="{{ url_for('management.delete_project') }}" onsubmit="return confirm('Really delete this project folder? This cannot be undone.');">
+              <input type="hidden" name="path" value="{{ item.path }}">
+              <button class="btn danger" type="submit">Delete</button>
+            </form>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">No project folders found.</p>
+  {% endif %}
+</section>
+{% endblock %}

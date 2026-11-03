@@ -13,6 +13,7 @@
         <span>Workflow</span>
         <select name="workflow" required>
           {% for wf in workflows %}
+            {% if loop.previtem is defined and loop.previtem.common and not wf.common %}<hr>{% endif %}
             <option value="{{ wf.id }}">{{ wf.name }}</option>
           {% endfor %}
         </select>
@@ -21,6 +22,7 @@
         <span>Checklist</span>
         <select name="checklist" required>
           {% for cl in checklists %}
+            {% if loop.previtem is defined and loop.previtem.common and not cl.common %}<hr>{% endif %}
             <option value="{{ cl.id }}">{{ cl.name }}</option>
           {% endfor %}
         </select>

@@ -1,0 +1,32 @@
+{
+  "id": "web_application_red_team",
+  "name": "Web Application (Swift) Checklist",
+  "items": [
+    {"id": "auth_default_shared_accounts", "title": "Default/shared accounts", "category": "authentication", "category_name": "Authentication", "scope": "global"},
+    {"id": "auth_password_reset_abuse", "title": "Password reset abuse", "category": "authentication", "category_name": "Authentication", "scope": "global"},
+
+    {"id": "access_idor", "title": "IDOR (access other users' data)", "category": "authorization_access_control", "category_name": "Authorization / Access Control", "scope": "per_endpoint"},
+    {"id": "access_forced_browsing_admin", "title": "Forced browsing to admin pages", "category": "authorization_access_control", "category_name": "Authorization / Access Control", "scope": "per_endpoint"},
+
+    {"id": "session_predictable_tokens", "title": "Predictable session tokens", "category": "session_management", "category_name": "Session Management", "scope": "global"},
+
+    {"id": "input_sql_injection", "title": "SQL injection", "category": "input_validation", "category_name": "Input Validation", "scope": "per_endpoint"},
+    {"id": "input_nosql_injection", "title": "NoSQL injection", "category": "input_validation", "category_name": "Input Validation", "scope": "per_endpoint"},
+    {"id": "input_command_injection", "title": "Command injection", "category": "input_validation", "category_name": "Input Validation", "scope": "per_endpoint"},
+    {"id": "input_path_traversal", "title": "Path traversal", "category": "input_validation", "category_name": "Input Validation", "scope": "per_endpoint"},
+    {"id": "input_file_upload_validation_missing", "title": "File upload validation missing", "category": "input_validation", "category_name": "Input Validation", "scope": "per_endpoint"},
+
+    {"id": "xsite_reflected_xss", "title": "Reflected XSS", "category": "cross_site_attacks", "category_name": "Cross-Site Attacks", "scope": "per_endpoint"},
+    {"id": "xsite_stored_xss", "title": "Stored XSS", "category": "cross_site_attacks", "category_name": "Cross-Site Attacks", "scope": "per_endpoint"},
+    {"id": "xsite_dom_xss", "title": "DOM XSS", "category": "cross_site_attacks", "category_name": "Cross-Site Attacks", "scope": "per_endpoint"},
+    {"id": "xsite_open_redirect", "title": "Open redirect", "category": "cross_site_attacks", "category_name": "Cross-Site Attacks", "scope": "per_endpoint"},
+
+    {"id": "api_missing_auth_endpoints", "title": "Missing auth on endpoints", "category": "api_security", "category_name": "API Security", "scope": "per_endpoint"},
+    {"id": "api_mass_assignment", "title": "Mass assignment", "category": "api_security", "category_name": "API Security", "scope": "per_endpoint"},
+
+    {"id": "data_secrets_client_code", "title": "Secrets exposed in client code", "category": "data_protection", "category_name": "Data Protection", "scope": "per_endpoint"},
+    {"id": "data_backup_exposure", "title": "Backup exposure", "category": "data_protection", "category_name": "Data Protection", "scope": "per_endpoint"},
+
+    {"id": "config_default_credentials", "title": "Default credentials", "category": "configuration_infrastructure", "category_name": "Configuration / Infrastructure", "scope": "global"}
+  ]
+}

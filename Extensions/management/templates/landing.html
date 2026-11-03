@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% import "_workflow_type.html" as workflow_type %}
+{% from "_new_project_form.html" import new_project_form with context %}
+{% block title %}Home{% endblock %}
+{% block body %}
+<style>
+  /* Landing (multi-project). The brand mark floats fixed top-left from base.html;
+     pad the page down so its content clears it instead of overlapping. */
+  main.content.landing-private { padding-top: 104px; }
+  .landing-private .landing-title { margin: 0 0 18px; }
+  /* "Open existing" is a single path field: keep it to one row. */
+  .open-existing { display: flex; gap: 10px; align-items: center; }
+  .open-existing input { flex: 1 1 auto; min-width: 0; }
+  .open-existing-hint { margin: 8px 0 0; }
+
+  /* Recent projects list */
+  .recent-list { display: flex; flex-direction: column; gap: 8px; }
+  .recent-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: border-color 0.15s, background 0.15s, transform 0.15s;
+  }
+  .recent-item:hover { border-color: var(--accent); transform: translateX(2px); }
+  .recent-icon {
+    width: 38px; height: 38px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 10px;
+    background: rgba(28,156,236,0.12);
+    color: var(--accent);
+    flex: 0 0 auto;
+  }
+  .recent-icon.workflow-type-web_application { color: var(--sp-blue); background: rgba(28,156,236,0.13); }
+  .recent-icon.workflow-type-web_service { color: var(--sp-teal); background: rgba(45,212,191,0.14); }
+  .recent-icon.workflow-type-network_infrastructure { color: var(--sp-orange); background: rgba(251,146,60,0.14); }
+  .recent-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .recent-title { font-weight: 600; font-size: 14px; color: var(--text); }
+  .recent-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recent-path code { font-size: 11px; background: transparent; padding: 0; }
+  .recent-meta { flex: 0 0 auto; display: inline-flex; gap: 6px; align-items: center; }
+</style>
+
+{# Top-left brand (from base), recent projects up top #}
+<main class="content landing-private">
+  <h1 class="landing-title">Projects</h1>
+
+  {% if recent_projects %}
+  <section class="panel recent-panel">
+    <div class="panel-head">
+      <h1>Recent projects</h1>
+      <span class="muted small">last {{ recent_projects | length }}</span>
+    </div>
+    <div class="recent-list">
+      {% for rp in recent_projects %}
+        <form method="post" action="{{ url_for('web.open_project') }}" class="recent-item">
+          <input type="hidden" name="path" value="{{ rp.path }}">
+          <div class="recent-icon workflow-type-{{ rp.workflow }}">
+            {{ workflow_type.workflow_type_icon(rp.workflow) }}
+          </div>
+          <div class="recent-main">
+            <div class="recent-title">{{ rp.name }}</div>
+            <div class="muted small recent-path"><code>{{ rp.path }}</code></div>
+          </div>
+          <div class="recent-meta">
+            {{ workflow_type.workflow_type_badge(rp.workflow, rp.workflow | replace('_', ' ') | title) }}
+          </div>
+          <button class="btn primary" type="submit">Open</button>
+        </form>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="panel">
+    <h2>New project</h2>
+    {{ new_project_form(workflows, checklists, default_path) }}
+  </section>
+
+  <section class="panel">
+    <h2>Open existing</h2>
+    <form method="post" action="{{ url_for('web.open_project') }}" class="open-existing">
+      <input type="text" name="path" placeholder="Project folder path, e.g. {{ default_path }}" aria-label="Project folder path" required>
+      <button class="btn primary" type="submit">Open</button>
+    </form>
+    <p class="muted small open-existing-hint">Point to a folder containing a <code>project.json</code> to reopen it.</p>
+  </section>
+</main>
+{% endblock %}

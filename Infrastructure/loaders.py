@@ -7,19 +7,14 @@ from pathlib import Path
 from Domain import Workflow, Checklist
 
 
-WORKFLOW_ALIASES = [
-    {
-        "alias_id": "web_application_red_team",
-        "source_id": "web_application",
-        "name": "Web Application (RT)",
-        "checklist": "web_application_red_team",
-    },
-]
+# A workflow alias reuses another workflow's phases with a different checklist:
+# {"alias_id": ..., "source_id": ..., "name": ..., "checklist": ...}
+WORKFLOW_ALIASES: list[dict] = []
 
 
 def load_workflows(folder: Path) -> dict[str, Workflow]:
     result = {}
-    preferred_order = {"web_application": 0, "web_application_red_team": 1, "web_service": 2, "network_infrastructure": 3}
+    preferred_order = {"web_application": 0, "web_application_swift": 1, "web_service": 2, "network_infrastructure": 3}
     paths = sorted(
         Path(folder).glob("*.json"),
         key=lambda p: (preferred_order.get(p.stem, 99), p.stem),
@@ -38,6 +33,8 @@ def load_workflows(folder: Path) -> dict[str, Workflow]:
         data["id"] = alias["alias_id"]
         data["name"] = alias["name"]
         data["checklist"] = alias["checklist"]
+        # "common" is a per-file flag; an alias has no file of its own.
+        data["common"] = alias.get("common", False)
         result[alias["alias_id"]] = Workflow(data)
 
     ordered = {}

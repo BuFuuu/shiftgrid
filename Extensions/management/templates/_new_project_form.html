@@ -1,0 +1,435 @@
+{# New-project form, shared by the Projects page and the no-project landing page.
+   Import "with context" so url_for is available. #}
+{% macro new_project_form(workflows, checklists, default_path, submit_label="Create") -%}
+<style>
+  .np-form { gap: 16px; }
+  .np-row { display: grid; gap: 14px; }
+  .np-row-meta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr); }
+  .np-row-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .np-form textarea { resize: vertical; min-height: 104px; }
+  .np-form select { width: 100%; }
+  /* Separator between the common workflows/checklists and the rest. Native
+     pickers mostly draw their own line; with customizable selects (below) this
+     styling applies fully. */
+  .np-form select hr {
+    border: 0;
+    border-top: 1px solid var(--muted);
+    opacity: 0.28;
+    margin: 4px 14px;
+  }
+  /* Where supported, render the picker in-page so it follows the app theme
+     (dark lists in dark mode) and the separator above can be styled. Other
+     browsers keep their native dropdown. */
+  @supports (appearance: base-select) {
+    .np-form select,
+    .np-form select::picker(select) { appearance: base-select; }
+    .np-form select { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    /* One-line button label that ellipsises instead of pushing the arrow out. */
+    .np-form select > button {
+      display: flex; align-items: center;
+      flex: 1 1 auto; min-width: 0;
+      padding: 0; border: 0; background: none;
+      color: inherit; font: inherit; text-align: start; cursor: inherit;
+    }
+    .np-form select selectedcontent {
+      flex: 1 1 auto;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .np-form select::picker-icon { flex: 0 0 auto; }
+    .np-form select::picker-icon { color: var(--muted); transition: rotate 0.15s; }
+    .np-form select:open::picker-icon { rotate: 180deg; }
+    .np-form select::picker(select) {
+      margin-top: 4px;
+      padding: 4px;
+      background: var(--panel);
+      border: 1px solid var(--border-2);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      color: var(--text);
+    }
+    .np-form select option {
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .np-form select option::checkmark { display: none; }
+    .np-form select option:hover,
+    .np-form select option:focus-visible { background: var(--panel-2); outline: none; }
+    .np-form select option:checked { background: rgba(28,156,236,0.14); color: var(--text); }
+  }
+  /* Select fields carry a "Preview" link in their label row, so they can't be a
+     wrapping <label> (the button would become the labelled control). Same look. */
+  .np-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .np-field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
+  .np-preview-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: none; border: 0; padding: 0;
+    color: var(--accent); font: inherit; font-size: 12px; cursor: pointer;
+  }
+  .np-preview-btn:hover { color: var(--accent-strong); text-decoration: underline; }
+  /* Submit is pinned top-right so the opened Advanced body can use the full
+     width beneath it instead of being squeezed into a left column. */
+  .np-footer {
+    position: relative;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .np-footer .actions { position: absolute; top: 14px; right: 0; }
+  .np-advanced > summary {
+    margin-right: 180px;
+    list-style: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--muted);
+    user-select: none;
+  }
+  .np-advanced > summary::-webkit-details-marker { display: none; }
+  .np-advanced > summary:hover { color: var(--text); }
+  .np-advanced > summary svg { transition: transform 0.15s; }
+  .np-advanced[open] > summary svg { transform: rotate(90deg); }
+  .np-advanced-body { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+  .np-advanced-body > .muted { margin: 0; }
+  .np-advanced-body textarea { font-size: 12px; min-height: 140px; }
+  @media (max-width: 900px) {
+    .np-row-meta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .np-row-meta > :first-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 640px) {
+    .np-row-meta, .np-row-pair { grid-template-columns: minmax(0, 1fr); }
+    .np-footer { display: flex; flex-direction: column; gap: 10px; }
+    .np-footer .actions { position: static; }
+    .np-footer .actions .btn { width: 100%; }
+    .np-advanced > summary { margin-right: 0; }
+  }
+
+  /* ---- Workflow / checklist preview modal ---- */
+  .dp-modal.endpoint-modal {
+    max-width: 920px;
+    /* Fixed height so switching tabs doesn't make the dialog jump. */
+    height: min(780px, calc(100vh - 40px));
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+  }
+  .dp-modal .endpoint-modal-head { margin: 0; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .dp-body { flex: 1 1 auto; overflow-y: auto; padding: 0 18px 18px; }
+  .dp-body[aria-busy="true"] { opacity: 0.55; }
+  .dp-loading { padding: 40px 0; text-align: center; }
+  .dp-tabs {
+    position: sticky; top: 0; z-index: 3; /* above the step-number pills (z-index 1) */
+    display: flex; gap: 6px;
+    padding: 12px 0;
+    background: var(--panel);
+  }
+  .dp-tab {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font: inherit; font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .dp-tab:hover { color: var(--text); border-color: var(--border-2); }
+  .dp-tab[aria-selected="true"] { color: var(--text); border-color: var(--accent); background: rgba(28,156,236,0.10); }
+  .dp-tab[data-dp-tab="workflow"] svg { color: var(--ic-workflow); }
+  .dp-tab[data-dp-tab="checklist"] svg { color: var(--ic-checklist); }
+  .dp-tab-count { font-size: 11px; color: var(--muted); }
+  .dp-head { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin: 4px 0 18px; }
+  .dp-head h3 { margin: 0; font-size: 18px; }
+  .dp-stats { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* Workflow: vertical phase timeline */
+  .dp-timeline { list-style: none; margin: 0; padding: 0; }
+  .dp-phase { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; padding-bottom: 18px; }
+  .dp-phase:last-child { padding-bottom: 0; }
+  .dp-phase:not(:last-child)::before {
+    content: "";
+    position: absolute; left: 19px; top: 42px; bottom: 2px;
+    width: 2px; border-radius: 2px;
+    background: linear-gradient(var(--c), var(--border));
+    opacity: 0.55;
+  }
+  .dp-marker {
+    width: 40px; height: 40px;
+    border-radius: 11px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--c);
+    background: color-mix(in srgb, var(--c) 13%, var(--panel-2));
+    border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+  }
+  .dp-num { font-size: 12px; font-weight: 700; line-height: 1; }
+  .dp-marker svg { margin-top: 2px; opacity: 0.9; }
+  .dp-phase-body { min-width: 0; padding-top: 2px; }
+  .dp-phase-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 14px; }
+  .dp-count { font-size: 11px; color: var(--muted); }
+  .dp-phase-title .dp-count { margin-left: auto; }
+  .dp-gate { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--sp-amber); }
+  .dp-desc { margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+  /* Steps: a numbered sequence on a thin rail in the phase colour; steps with
+     a description/examples expand on click. */
+  .dp-steps { list-style: none; margin: 8px 0 0; padding: 0; }
+  .dp-steps li { position: relative; }
+  .dp-steps li:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 25px; top: 24px; bottom: -4px;
+    width: 1px;
+    background: color-mix(in srgb, var(--c) 40%, transparent);
+  }
+  .dp-step-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12.5px;
+  }
+  summary.dp-step-row { cursor: pointer; list-style: none; }
+  summary.dp-step-row::-webkit-details-marker { display: none; }
+  summary.dp-step-row:hover { background: var(--panel-2); }
+  summary.dp-step-row:hover .dp-step-title { color: var(--accent); }
+  .dp-step-no {
+    position: relative; z-index: 1;
+    flex: 0 0 auto;
+    width: 34px;
+    padding: 1px 0;
+    text-align: center;
+    border-radius: 999px;
+    font: 600 10.5px ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--c);
+    background: color-mix(in srgb, var(--c) 14%, var(--panel));
+    border: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
+  }
+  .dp-step-title { flex: 1 1 auto; min-width: 0; }
+  .dp-step-repeat { flex: 0 0 auto; display: inline-flex; color: var(--muted); }
+  .dp-step-chevron { flex: 0 0 auto; color: var(--muted); transition: transform 0.15s; }
+  .dp-steps details[open] .dp-step-chevron { transform: rotate(90deg); }
+  .dp-step-more { margin: 2px 8px 8px 52px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+  .dp-step-more p { margin: 0 0 6px; }
+  .dp-step-more pre {
+    margin: 0;
+    padding: 8px 10px;
+    white-space: pre-wrap;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 11.5px;
+    color: var(--text);
+  }
+
+  /* Checklist: category distribution + category cards */
+  .dp-dist { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; margin-bottom: 16px; }
+  .dp-dist span { min-width: 4px; opacity: 0.85; }
+  .dp-cats { columns: 2 320px; column-gap: 14px; }
+  .dp-cat {
+    break-inside: avoid;
+    margin: 0 0 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--c);
+    border-radius: 10px;
+    padding: 10px 12px 6px;
+  }
+  .dp-cat header { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 4px; }
+  .dp-cat header .dp-count { margin-left: auto; }
+  .dp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: 0 0 auto; }
+  .dp-cat ul { list-style: none; margin: 0; padding: 0; }
+  .dp-cat li + li { border-top: 1px solid var(--border); }
+  .dp-cat summary, .dp-item-row {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 7px 0;
+    font-size: 12.5px;
+  }
+  .dp-cat summary { cursor: pointer; list-style: none; }
+  .dp-cat summary::-webkit-details-marker { display: none; }
+  .dp-cat summary .dp-item-title::after { content: " ›"; color: var(--muted); }
+  .dp-cat details[open] summary .dp-item-title::after { content: " ⌄"; }
+  .dp-cat summary:hover .dp-item-title { color: var(--accent); }
+  .dp-item-title { flex: 1 1 auto; min-width: 0; }
+  .dp-scope { flex: 0 0 auto; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  .dp-scope.per-endpoint { color: var(--ic-endpoints); }
+  .dp-item-more { padding: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .dp-item-more p { margin: 0 0 6px; }
+  .dp-item-more pre {
+    margin: 0;
+    padding: 8px 10px;
+    white-space: pre-wrap;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 11.5px;
+  }
+  @media (max-width: 640px) {
+    .dp-phase-title .dp-count { margin-left: 0; }
+    .dp-tab-count { display: none; }
+  }
+</style>
+<form method="post" action="{{ url_for('management.create_project') }}" class="form np-form" data-np-form>
+  <div class="np-row np-row-meta">
+    <label>
+      <span>Name</span>
+      <input type="text" name="name" placeholder="e.g. acme-webapp-q4" required>
+    </label>
+    <div class="np-field">
+      <div class="np-field-head">
+        <label for="np-workflow">Workflow</label>
+        <button type="button" class="np-preview-btn" data-np-preview="workflow">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          Preview
+        </button>
+      </div>
+      <select id="np-workflow" name="workflow" data-np-workflow>
+        <button type="button"><selectedcontent></selectedcontent></button>
+        {% for wf in workflows %}
+          {% if loop.previtem is defined and loop.previtem.common and not wf.common %}<hr>{% endif %}
+          <option value="{{ wf.id }}" data-checklist="{{ wf.checklist_id }}">{{ wf.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="np-field">
+      <div class="np-field-head">
+        <label for="np-checklist">Checklist</label>
+        <button type="button" class="np-preview-btn" data-np-preview="checklist">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          Preview
+        </button>
+      </div>
+      <select id="np-checklist" name="checklist" data-np-checklist>
+        <button type="button"><selectedcontent></selectedcontent></button>
+        {% for cl in checklists %}
+          {% if loop.previtem is defined and loop.previtem.common and not cl.common %}<hr>{% endif %}
+          <option value="{{ cl.id }}">{{ cl.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="np-row np-row-pair">
+    <label>
+      <span>Scope <em class="muted">(one per line)</em></span>
+      <textarea name="scope" rows="5" placeholder="example.com&#10;10.0.0.0/24" required></textarea>
+    </label>
+    <label>
+      <span>Initial endpoints <em class="muted">(optional)</em></span>
+      <textarea name="endpoints" rows="5" placeholder="app.example.com&#10;api.example.com/v1"></textarea>
+    </label>
+  </div>
+
+  <div class="np-footer">
+    <details class="np-advanced">
+      <summary>
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Advanced</span>
+        <em class="muted small">folder location, custom workflow</em>
+      </summary>
+      <div class="np-advanced-body">
+        <label>
+          <span>Project folder <em class="muted">(leave empty for the default)</em></span>
+          <input type="text" name="path" placeholder="{{ default_path }}">
+        </label>
+        <p class="muted small">Paste a workflow JSON and its checklist JSON to run this project on a
+          bespoke workflow instead of the one selected above. Both are required together, are stored
+          inside the project folder, and each needs an <code>id</code> that doesn't clash with a built-in.</p>
+        <div class="np-row np-row-pair">
+          <label>
+            <span>Custom workflow JSON</span>
+            <textarea name="workflow_def" rows="7" spellcheck="false" placeholder='{"id": "my_flow", "name": "My Flow", "checklist": "my_checks", "phases": [ ... ]}'></textarea>
+          </label>
+          <label>
+            <span>Custom checklist JSON</span>
+            <textarea name="checklist_def" rows="7" spellcheck="false" placeholder='{"id": "my_checks", "name": "My Checks", "items": [ ... ]}'></textarea>
+          </label>
+        </div>
+      </div>
+    </details>
+    <div class="actions">
+      <button class="btn primary" type="submit">{{ submit_label }}</button>
+    </div>
+  </div>
+</form>
+
+<div class="endpoint-modal-backdrop" data-dp-backdrop hidden>
+  <div class="endpoint-modal dp-modal" role="dialog" aria-modal="true" aria-labelledby="dp-title">
+    <div class="endpoint-modal-head">
+      <h2 id="dp-title">Preview</h2>
+      <button type="button" class="endpoint-modal-close" data-dp-close aria-label="Close">&times;</button>
+    </div>
+    <div class="dp-body" data-dp-body></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var form = document.querySelector('[data-np-form]');
+    var backdrop = document.querySelector('[data-dp-backdrop]');
+    if (!form || !backdrop) return;
+    var wf = form.querySelector('[data-np-workflow]');
+    var cl = form.querySelector('[data-np-checklist]');
+    var body = backdrop.querySelector('[data-dp-body]');
+    var previewUrl = {{ url_for('management.definition_preview') | tojson }};
+    var lastOpener = null;
+
+    // Preselect the workflow's own checklist whenever the workflow changes;
+    // the operator can still pick another one afterwards.
+    function syncDefault() {
+      var opt = wf.options[wf.selectedIndex];
+      var id = opt && opt.getAttribute('data-checklist');
+      if (id && cl.querySelector('option[value="' + id + '"]')) cl.value = id;
+    }
+    wf.addEventListener('change', syncDefault);
+    syncDefault();
+
+    function showTab(name) {
+      body.querySelectorAll('[data-dp-tab]').forEach(function (t) {
+        t.setAttribute('aria-selected', t.getAttribute('data-dp-tab') === name ? 'true' : 'false');
+      });
+      body.querySelectorAll('[data-dp-pane]').forEach(function (p) {
+        p.hidden = p.getAttribute('data-dp-pane') !== name;
+      });
+      body.scrollTop = 0;
+    }
+
+    function open(tab) {
+      lastOpener = document.activeElement;
+      backdrop.hidden = false;
+      document.body.style.overflow = 'hidden';
+      body.setAttribute('aria-busy', 'true');
+      if (!body.firstChild) body.innerHTML = '<p class="muted dp-loading">Loading…</p>';
+      var qs = '?workflow=' + encodeURIComponent(wf.value) + '&checklist=' + encodeURIComponent(cl.value);
+      fetch(previewUrl + qs, { headers: { 'Accept': 'text/html' } })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+        .then(function (html) { body.innerHTML = html; showTab(tab); })
+        .catch(function () { body.innerHTML = '<p class="muted dp-loading">Could not load the preview.</p>'; })
+        .then(function () { body.removeAttribute('aria-busy'); backdrop.querySelector('[data-dp-close]').focus(); });
+    }
+
+    function close() {
+      backdrop.hidden = true;
+      document.body.style.overflow = '';
+      if (lastOpener) lastOpener.focus();
+    }
+
+    form.querySelectorAll('[data-np-preview]').forEach(function (btn) {
+      btn.addEventListener('click', function () { open(btn.getAttribute('data-np-preview')); });
+    });
+    body.addEventListener('click', function (e) {
+      var tab = e.target.closest('[data-dp-tab]');
+      if (tab) showTab(tab.getAttribute('data-dp-tab'));
+    });
+    backdrop.querySelector('[data-dp-close]').addEventListener('click', close);
+    backdrop.addEventListener('click', function (e) { if (e.target === backdrop) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !backdrop.hidden) close();
+    });
+  })();
+</script>
+{%- endmacro %}

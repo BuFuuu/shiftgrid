@@ -1,0 +1,35 @@
+{
+  "id": "network_infrastructure",
+  "name": "Network Infrastructure Security Checklist",
+  "common": true,
+  "items": [
+    {"id": "net_scope_host_in_scope", "title": "Host in scope", "category": "scope_reachability", "category_name": "Scope & Reachability", "scope": "per_endpoint"},
+    {"id": "net_scope_icmp_tcp_reachability", "title": "ICMP/TCP reachability", "category": "scope_reachability", "category_name": "Scope & Reachability", "scope": "per_endpoint"},
+    {"id": "net_scope_dns_reverse_dns", "title": "DNS/reverse DNS", "category": "scope_reachability", "category_name": "Scope & Reachability", "scope": "per_endpoint"},
+
+    {"id": "net_enum_top_ports", "title": "Top ports", "category": "port_service_enumeration", "category_name": "Port & Service Enumeration", "scope": "per_endpoint"},
+    {"id": "net_enum_full_tcp_udp", "title": "Full TCP/UDP", "category": "port_service_enumeration", "category_name": "Port & Service Enumeration", "scope": "per_endpoint"},
+    {"id": "net_enum_service_version_detection", "title": "Service/version detection", "category": "port_service_enumeration", "category_name": "Port & Service Enumeration", "scope": "per_endpoint"},
+
+    {"id": "net_exposure_admin_services", "title": "Exposed admin services", "category": "exposure_access_control", "category_name": "Exposure & Access Control", "scope": "per_endpoint"},
+    {"id": "net_exposure_firewall_rules", "title": "Firewall rules", "category": "exposure_access_control", "category_name": "Exposure & Access Control", "scope": "global"},
+    {"id": "net_exposure_segmentation", "title": "Segmentation", "category": "exposure_access_control", "category_name": "Exposure & Access Control", "scope": "global"},
+
+    {"id": "net_misconfig_default_configs", "title": "Default configs", "category": "service_misconfiguration", "category_name": "Service Misconfiguration", "scope": "per_endpoint"},
+    {"id": "net_misconfig_anonymous_access", "title": "Anonymous access", "category": "service_misconfiguration", "category_name": "Service Misconfiguration", "scope": "per_endpoint"},
+    {"id": "net_misconfig_weak_protocols", "title": "Weak protocols", "category": "service_misconfiguration", "category_name": "Service Misconfiguration", "scope": "per_endpoint"},
+
+    {"id": "net_creds_default_credentials", "title": "Default credentials", "category": "credentials_management", "category_name": "Credentials & Management", "scope": "per_endpoint"},
+    {"id": "net_creds_password_policy", "title": "Password policy", "category": "credentials_management", "category_name": "Credentials & Management", "scope": "global"},
+    {"id": "net_creds_management_plane_exposure", "title": "Management plane exposure", "category": "credentials_management", "category_name": "Credentials & Management", "scope": "per_endpoint"},
+
+    {"id": "net_vuln_known_cves", "title": "Known CVEs", "category": "vulnerability_review", "category_name": "Vulnerability Review", "scope": "per_endpoint"},
+    {"id": "net_vuln_outdated_services", "title": "Outdated services", "category": "vulnerability_review", "category_name": "Vulnerability Review", "scope": "per_endpoint"},
+    {"id": "net_vuln_risky_banners", "title": "Risky banners", "category": "vulnerability_review", "category_name": "Vulnerability Review", "scope": "per_endpoint"},
+
+    {"id": "net_monitoring_logging", "title": "Logging", "category": "monitoring_resilience", "category_name": "Monitoring & Resilience", "scope": "global"},
+    {"id": "net_monitoring_alerting", "title": "Alerting", "category": "monitoring_resilience", "category_name": "Monitoring & Resilience", "scope": "global"},
+    {"id": "net_monitoring_dos_resilience", "title": "DoS resilience", "category": "monitoring_resilience", "category_name": "Monitoring & Resilience", "scope": "global"},
+    {"id": "net_monitoring_integrity_monitoring", "title": "Integrity monitoring", "category": "monitoring_resilience", "category_name": "Monitoring & Resilience", "scope": "global"}
+  ]
+}

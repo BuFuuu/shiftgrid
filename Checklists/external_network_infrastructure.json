@@ -1,0 +1,40 @@
+{
+  "id": "external_network_infrastructure",
+  "name": "External Network Infrastructure Checklist",
+  "common": true,
+  "items": [
+    {"id": "tls_deprecated_protocols", "title": "Deprecated TLS/SSL protocols (SSLv3, TLS 1.0/1.1)", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+    {"id": "tls_weak_cipher_suites", "title": "Weak / export / NULL cipher suites", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+    {"id": "tls_no_forward_secrecy", "title": "No forward secrecy (PFS)", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+    {"id": "tls_certificate_trust", "title": "Untrusted / self-signed / mismatched certificate", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+    {"id": "tls_certificate_expiry", "title": "Expired or soon-to-expire certificate", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+    {"id": "tls_weak_key_signature", "title": "Weak key size or signature algorithm", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+    {"id": "tls_known_vulnerabilities", "title": "Known TLS vulnerabilities (Heartbleed, ROBOT, CCS)", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+    {"id": "tls_insecure_renegotiation", "title": "Insecure renegotiation / compression (CRIME)", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+
+    {"id": "exp_unnecessary_services", "title": "Unnecessary services exposed to the internet", "category": "exposure_access_control", "category_name": "Exposure & Access Control", "scope": "global"},
+    {"id": "exp_management_plane_exposed", "title": "Management plane exposed externally (SSH/RDP/DB/IPMI)", "category": "exposure_access_control", "category_name": "Exposure & Access Control", "scope": "per_endpoint"},
+    {"id": "exp_firewall_filtering", "title": "Weak firewall / packet filtering", "category": "exposure_access_control", "category_name": "Exposure & Access Control", "scope": "global"},
+    {"id": "exp_ip_restriction_bypass", "title": "Missing or bypassable IP restrictions", "category": "exposure_access_control", "category_name": "Exposure & Access Control", "scope": "per_endpoint"},
+
+    {"id": "svc_default_configuration", "title": "Default / insecure service configuration", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+    {"id": "svc_anonymous_access", "title": "Anonymous / unauthenticated access", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+    {"id": "svc_cleartext_protocol", "title": "Cleartext protocol (telnet, FTP, HTTP, SNMPv1/2c)", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+    {"id": "svc_information_disclosure", "title": "Information disclosure in banners / responses", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+    {"id": "svc_directory_listing", "title": "Directory listing / exposed files (web services)", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+    {"id": "svc_dangerous_methods", "title": "Dangerous methods / features enabled", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+
+    {"id": "auth_default_credentials", "title": "Default credentials", "category": "authentication_credentials", "category_name": "Authentication & Credentials", "scope": "per_endpoint"},
+    {"id": "auth_weak_credentials", "title": "Weak / guessable credentials", "category": "authentication_credentials", "category_name": "Authentication & Credentials", "scope": "per_endpoint"},
+    {"id": "auth_password_policy", "title": "Weak password / lockout policy", "category": "authentication_credentials", "category_name": "Authentication & Credentials", "scope": "global"},
+    {"id": "auth_no_mfa_remote_access", "title": "No MFA on remote access (VPN/RDP/SSH gateways)", "category": "authentication_credentials", "category_name": "Authentication & Credentials", "scope": "global"},
+
+    {"id": "vuln_outdated_service", "title": "Outdated service version", "category": "vulnerabilities", "category_name": "Vulnerabilities", "scope": "per_endpoint"},
+    {"id": "vuln_known_cves", "title": "Known CVEs / public exploits", "category": "vulnerabilities", "category_name": "Vulnerabilities", "scope": "per_endpoint"},
+    {"id": "vuln_risky_service_exposed", "title": "Inherently risky service exposed (SMB, RDP, DB)", "category": "vulnerabilities", "category_name": "Vulnerabilities", "scope": "per_endpoint"},
+
+    {"id": "mon_logging", "title": "Logging of access and failures", "category": "monitoring_resilience", "category_name": "Monitoring & Resilience", "scope": "global"},
+    {"id": "mon_alerting", "title": "Alerting on attacks / anomalies", "category": "monitoring_resilience", "category_name": "Monitoring & Resilience", "scope": "global"},
+    {"id": "mon_dos_resilience", "title": "DoS resilience / rate limiting", "category": "monitoring_resilience", "category_name": "Monitoring & Resilience", "scope": "global"}
+  ]
+}

@@ -820,6 +820,8 @@ main.content.landing-core { max-width: 560px; padding-top: 96px; }
   background: rgba(74,222,128,0.10);
 }
 .sidebar-scope-item.copied code { color: var(--ok); }
+.sidebar-scope-more { text-decoration: none; cursor: pointer; }
+.sidebar-scope-more:hover { color: var(--text); text-decoration: underline; }
 .sidebar nav { display: flex; flex-direction: column; gap: 2px; align-items: center; }
 .sidebar nav a {
   display: flex; align-items: center; justify-content: flex-start; gap: 10px;

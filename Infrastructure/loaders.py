@@ -14,7 +14,7 @@ WORKFLOW_ALIASES: list[dict] = []
 
 def load_workflows(folder: Path) -> dict[str, Workflow]:
     result = {}
-    preferred_order = {"web_application": 0, "web_application_swift": 1, "web_service": 2, "network_infrastructure": 3}
+    preferred_order = {"web_application": 0, "web_application_swift": 1, "web_service": 2, "external_network_infrastructure": 3, "internal_network_infrastructure": 4}
     paths = sorted(
         Path(folder).glob("*.json"),
         key=lambda p: (preferred_order.get(p.stem, 99), p.stem),

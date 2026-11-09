@@ -138,7 +138,12 @@
               </button>
             {% endfor %}
             {% if project.scope | length > 4 %}
-              <span class="muted small">+{{ project.scope | length - 4 }} more</span>
+              {% set scope_nav = extra_nav | selectattr('section', 'equalto', 'scope') | first %}
+              {% if scope_nav %}
+                <a class="muted small sidebar-scope-more" href="{{ url_for(scope_nav.endpoint) }}" title="Show full scope">+{{ project.scope | length - 4 }} more</a>
+              {% else %}
+                <span class="muted small">+{{ project.scope | length - 4 }} more</span>
+              {% endif %}
             {% endif %}
           </div>
         {% else %}

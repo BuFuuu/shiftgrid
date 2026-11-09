@@ -403,10 +403,10 @@
       <button type="button" class="endpoint-modal-close" id="add-endpoint-close" aria-label="Close">&times;</button>
     </div>
     <form method="post" action="{{ url_for('web.add_endpoint') }}" class="form endpoint-modal-form">
-      <label><span>Endpoint</span><input type="text" name="name" required placeholder="{{ 'host or IP' if workflow.id == 'network_infrastructure' else 'https://example.com/path' }}"></label>
+      <label><span>Endpoint</span><input type="text" name="name" required placeholder="{{ 'host or IP:port' if workflow.id in ['external_network_infrastructure', 'internal_network_infrastructure'] else 'https://example.com/path' }}"></label>
       <label><span>Type</span>
         <select name="type" class="status-select">
-          {% set default_type = 'infrastructure' if workflow.id == 'network_infrastructure' else 'web' %}
+          {% set default_type = 'infrastructure' if workflow.id in ['external_network_infrastructure', 'internal_network_infrastructure'] else 'web' %}
           {% for t in ['web', 'infrastructure', 'database'] %}
             <option value="{{ t }}" {% if t == default_type %}selected{% endif %}>{{ t }}</option>
           {% endfor %}

@@ -14,12 +14,13 @@ Ideas behind this project:
 - notes page contain the holistic view so agents stay focused
 - simple to extend with other agents (scope control agent or reporter agent)
 - checklists prevent missed tests, endpoint lists prevent missed scope
+- professional workflows and checklists, refined over years of real testing
 
 All in all it comes down to:
 - LLM token stream (thinking) -> ChatGPT (talking) -> Claude Code agent (acting) -> Workflows (working)
 - context window (short-term mem) -> notes page (project-wide mem) -> observations (detailed, long-term mem)
 
-The tool is independent of the workflows, checklists, agents, and models you use. As a result, a simple workflow using a low-cost model can produce dramatically different output from a more detailed workflow using premium models running concurrently. Workflows and checklists ship for web applications (full, short and simple), web services / APIs, network infrastructure, native binaries / LOLBAS and Confluence sensitive-info discovery — or paste a custom workflow + checklist when creating a project.
+The tool is independent of the workflows, checklists, agents, and models you use. As a result, a simple workflow using a low-cost model can produce dramatically different output from a more detailed workflow using premium models running concurrently.
 
 [![X](https://img.shields.io/badge/X-@_shiftgrid-black?logo=x)](https://x.com/_shiftgrid)
 
@@ -58,17 +59,13 @@ This is a local application started via Docker and bound to 127.0.0.1. One port 
 
 Prompt Injection: When testing applications that contain prompt injection payloads, the first line of defense is a secure agent running in an isolated environment. If the agent is compromised, assume it has access to all data collected during the pentest. In that case, the pentest environment and its data must be considered compromised as well.
 
-Admin agents: by default agents cannot create or switch projects or set scope — that stays with the human operator in the web UI. Starting ShiftGrid with `ALLOW_ADMIN_AGENTS=true` lets agents do this over the API (`/api/v1/projects`). That breaks the operator/agent separation above, so only enable it when you trust the agent with scope. The startup banner shows a red warning while it is on.
-
-
-# Extensions
-The core (`factory.create_app`) knows nothing about any feature package; extensions plug in through its injection knobs (extra blueprints, API routers, template / workflow / checklist folders, nav items, a `ProjectService` subclass, ...). `app.py` wires in the built-in `Extensions/management` extension (Projects page, Scope page, credentials, admin-agent API). Without it — `create_app(single_project=True, lock_scope_on_create=True)` — you get the bare single-project core. See `Extensions/__init__.py` for the knob list; to add your own, build on `management.factory_kwargs()` and pass the result to `create_app`.
+Admin agents: by default agents cannot create or switch projects or set scope, that stays with the human operator in the web UI. Starting ShiftGrid with `ALLOW_ADMIN_AGENTS=true` lets agents do this over the API (`/api/v1/projects`). That breaks the operator/agent separation above, so only enable it when you trust the agent with scope. The startup banner shows a red warning while it is on.
 
 
 # Problem of Malicious Humans and AIs
 At it's core this is primarily an API for managing testing workflows through checklist and task tracking. It does not provide exploits or malicious tools or scripts. However, it lowers the barrier for attacking - especially with the right workflows. At the same time it lowers the barrier and costs for real beneficial pentests and therefore gives the opportunity to secure many systems.
 
-A certain degree of friction was intentionally left in the project. Plus, the default workflow was chosen to not get into too much detail. This is a rather shallow testing. But none of this stops a determined attacker and we should not be pretending it does. A motivated bad actor strips the friction in minutes, improves workflows and modifies the ShiftGrid source code itself with an AI coding agent - that's a fact.
+A certain degree of friction was intentionally left in the project. But none of this stops a determined attacker and we should not be pretending it does. A motivated bad actor strips the friction in minutes, improves workflows and modifies the ShiftGrid source code itself with an AI coding agent - that's a fact.
 
 - worst-case: script-kiddy with a high-end model attacks critical infrastructure for some reason.
 - best-case: IT guys in companies use this tool to secure their environment on a regular basis.

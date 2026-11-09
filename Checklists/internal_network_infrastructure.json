@@ -1,0 +1,45 @@
+{
+  "id": "internal_network_infrastructure",
+  "name": "Internal Network Infrastructure Checklist",
+  "common": true,
+  "items": [
+    {"id": "net_broadcast_poisoning", "title": "Spoofable broadcast protocols (LLMNR/NBT-NS/mDNS)", "category": "network_level", "category_name": "Network-Level Weaknesses", "scope": "global"},
+    {"id": "net_ipv6_dhcp_takeover", "title": "IPv6 / DHCPv6 takeover (mitm6)", "category": "network_level", "category_name": "Network-Level Weaknesses", "scope": "global"},
+    {"id": "net_smb_signing_not_required", "title": "SMB signing not required (relay risk)", "category": "network_level", "category_name": "Network-Level Weaknesses", "scope": "global"},
+    {"id": "net_segmentation", "title": "Flat network / weak segmentation (VLAN reachability)", "category": "network_level", "category_name": "Network-Level Weaknesses", "scope": "global"},
+    {"id": "net_cleartext_protocols", "title": "Cleartext protocols in use on the LAN", "category": "network_level", "category_name": "Network-Level Weaknesses", "scope": "global"},
+
+    {"id": "ad_anonymous_enumeration", "title": "Anonymous domain / LDAP enumeration", "category": "active_directory", "category_name": "Active Directory & Identity", "scope": "global"},
+    {"id": "ad_kerberoasting", "title": "Kerberoastable service accounts", "category": "active_directory", "category_name": "Active Directory & Identity", "scope": "global"},
+    {"id": "ad_asreproasting", "title": "AS-REP roastable accounts", "category": "active_directory", "category_name": "Active Directory & Identity", "scope": "global"},
+    {"id": "ad_weak_password_policy", "title": "Weak domain password policy", "category": "active_directory", "category_name": "Active Directory & Identity", "scope": "global"},
+    {"id": "ad_null_sessions", "title": "SMB / RPC null sessions", "category": "active_directory", "category_name": "Active Directory & Identity", "scope": "per_endpoint"},
+    {"id": "ad_privileged_exposure", "title": "Privileged accounts / attack paths exposed", "category": "active_directory", "category_name": "Active Directory & Identity", "scope": "global"},
+
+    {"id": "svc_default_configuration", "title": "Default / insecure service configuration", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+    {"id": "svc_anonymous_access", "title": "Anonymous / unauthenticated access", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+    {"id": "svc_open_shares", "title": "Readable / writable file shares (SMB/NFS)", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+    {"id": "svc_default_credentials", "title": "Default credentials", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+    {"id": "svc_information_disclosure", "title": "Information disclosure (SNMP, banners, shares)", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+    {"id": "svc_dangerous_methods", "title": "Dangerous methods / features enabled", "category": "service_hardening", "category_name": "Service Hardening & Misconfiguration", "scope": "per_endpoint"},
+
+    {"id": "tls_deprecated_protocols", "title": "Deprecated TLS/SSL protocols (SSLv3, TLS 1.0/1.1)", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+    {"id": "tls_weak_cipher_suites", "title": "Weak / export / NULL cipher suites", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+    {"id": "tls_certificate_trust", "title": "Untrusted / self-signed / mismatched certificate", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+    {"id": "tls_known_vulnerabilities", "title": "Known TLS vulnerabilities (Heartbleed, ROBOT, CCS)", "category": "transport_security", "category_name": "Transport Security (TLS)", "scope": "global"},
+
+    {"id": "vuln_outdated_service", "title": "Outdated service version", "category": "vulnerabilities", "category_name": "Vulnerabilities", "scope": "per_endpoint"},
+    {"id": "vuln_known_cves", "title": "Known CVEs / public exploits", "category": "vulnerabilities", "category_name": "Vulnerabilities", "scope": "per_endpoint"},
+    {"id": "vuln_missing_patches", "title": "Missing OS/service patches (e.g. MS17-010)", "category": "vulnerabilities", "category_name": "Vulnerabilities", "scope": "per_endpoint"},
+    {"id": "vuln_risky_service_exposed", "title": "Inherently risky service reachable (SMB, RDP, DB)", "category": "vulnerabilities", "category_name": "Vulnerabilities", "scope": "per_endpoint"},
+
+    {"id": "cred_reuse_local_admin", "title": "Local admin password reuse", "category": "credentials_lateral", "category_name": "Credentials & Lateral Movement", "scope": "global"},
+    {"id": "cred_cleartext_storage", "title": "Credentials in shares / scripts / GPP", "category": "credentials_lateral", "category_name": "Credentials & Lateral Movement", "scope": "per_endpoint"},
+    {"id": "cred_relay_paths", "title": "NTLM relay paths", "category": "credentials_lateral", "category_name": "Credentials & Lateral Movement", "scope": "global"},
+    {"id": "cred_token_hash_reuse", "title": "Pass-the-hash / token reuse exposure", "category": "credentials_lateral", "category_name": "Credentials & Lateral Movement", "scope": "global"},
+
+    {"id": "mon_logging", "title": "Logging of access and failures", "category": "monitoring_resilience", "category_name": "Monitoring & Resilience", "scope": "global"},
+    {"id": "mon_alerting", "title": "Alerting on attacks / anomalies", "category": "monitoring_resilience", "category_name": "Monitoring & Resilience", "scope": "global"},
+    {"id": "mon_host_monitoring", "title": "Lack of EDR / host monitoring", "category": "monitoring_resilience", "category_name": "Monitoring & Resilience", "scope": "global"}
+  ]
+}

@@ -50,7 +50,7 @@ def bulk_import_endpoints():
     f = request.files.get("file")
     if not f:
         return redirect(url_for("web.endpoints"))
-    atype = "host" if s.workflow_for(project).id == "network_infrastructure" else "web"
+    atype = "host" if s.workflow_for(project).id in ("external_network_infrastructure", "internal_network_infrastructure") else "web"
     imported = 0
     skipped = []
     for raw in f.read().decode("utf-8", "replace").splitlines():

@@ -324,7 +324,9 @@ def _next_action_for_step(project, workflow, phase: dict, step: dict, state: dic
             path=f"/api/v1/workflow/phases/{phase['id']}/steps/{sid}/finish",
             why=(
                 "status is done|skipped and observations are set; send `command_log` — every command you "
-                "executed for this step, verbatim, with its UTC timestamp and a ~10-word why"
+                "executed for this step, verbatim, with its UTC timestamp and a ~10-word why; for a script you "
+                "wrote, upload it (POST .../scripts, curl -F file=@probe.py) and add "
+                "`script` {sha256, key_lines: [{line, why, values?}]} — line numbers via grep -n"
                 + ("; project requires inline notes diff (notes_old_string + notes_new_string)" if project.notes_required else "")
             ),
             example_body={

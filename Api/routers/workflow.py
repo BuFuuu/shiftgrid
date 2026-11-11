@@ -23,6 +23,7 @@ from ..schemas import (
     FocusedEndpointsResponse,
     EndpointTestingStepResponse,
     RawCaptureMeta,
+    ScriptUploadResponse,
     StepEntry,
     WorkflowDefinition,
     WorkflowCurrentPhaseResponse,
@@ -480,7 +481,9 @@ def finish_phase_step(
 
     # Validate the command log up front so a bad entry rejects the whole call
     # before anything (notes diff, finished flag) is applied.
-    command_log = p.validate_command_log([e.model_dump() for e in body.command_log])
+    command_log = p.validate_command_log(
+        [e.model_dump(exclude_none=True) for e in body.command_log], phase_id, step_id
+    )
 
     # Re-calling /finish on an already-finished step is idempotent and skips
     # the notes gate — the agent already paid that cost the first time. A
@@ -743,6 +746,46 @@ def post_step_raw_capture(
         raise HTTPException(status_code=409, detail={"error": "step_disabled", "message": str(e)})
     service.save(p)
     return entry
+
+
+@router.post(
+    "/workflow/phases/{phase_id}/steps/{step_id}/scripts",
+    response_model=ScriptUploadResponse,
+    status_code=201,
+    summary="Upload Step Script  (multipart/form-data — a script you ran, so command_log can reference it by sha256)",
+)
+def post_step_script(
+    phase_id: str,
+    step_id: str,
+    file: UploadFile = File(
+        ...,
+        description="The script file as run, sent as multipart/form-data: curl -F file=@probe.py. "
+        "The bytes come from disk, so the source costs you no tokens.",
+    ),
+    name: str | None = Form(None, description="Optional stored name; defaults to the uploaded file's name."),
+    service: ProjectService = Depends(require_loaded),
+):
+    """Store a script you executed for this step (python, bash, ...). Returns its
+    sha256 — reference it in the finish call's command_log entry as
+    `"script": {"sha256": "...", "key_lines": [...]}` instead of pasting the
+    source. Get key line numbers cheaply with `grep -n`."""
+    p = service.current
+    wf = service.workflow_for(p)
+    _phase_step(wf, phase_id, step_id)
+    fname = (name or file.filename or "").strip() or "script"
+    try:
+        ref = p.upload_step_script(phase_id, step_id, fname, file.file.read())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except StepDisabledError as e:
+        raise HTTPException(status_code=409, detail={"error": "step_disabled", "message": str(e)})
+    service.save(p)
+    return ScriptUploadResponse(
+        sha256=ref["sha256"],
+        name=ref["name"],
+        line_count=ref["line_count"],
+        use=f'in finish: "script": {{"sha256": "{ref["sha256"][:12]}", "key_lines": [{{"line": N, "why": "..."}}]}}',
+    )
 
 
 @router.post("/workflow/phases/{phase_id}/modify-mode")

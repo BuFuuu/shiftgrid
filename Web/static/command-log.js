@@ -178,6 +178,7 @@
 
   // Group a segment's words into display lines: head (env/wrapper/cmd/sub),
   // then one group per flag (+ its value) / positional / redirect.
+  var PLAIN = { arg: 1, sub: 1, num: 1 };
   function groupSegment(words) {
     var head = [], groups = [], i = 0;
     while (i < words.length && /^(env|wrap|cmd|sub|num|flag)$/.test(words[i].cls)) {
@@ -202,8 +203,14 @@
           grp.push(nx); i++;
         }
         groups.push(grp);
+      } else if (PLAIN[cw.cls] && groups.length && groups[groups.length - 1].plain) {
+        // Runs of plain words (prose, subcommand chains) stay on one wrapping
+        // line instead of exploding into one word per line.
+        groups[groups.length - 1].push(cw);
       } else {
-        groups.push([cw]);
+        var one = [cw];
+        one.plain = !!PLAIN[cw.cls];
+        groups.push(one);
       }
     }
     return { head: head, groups: groups };
@@ -218,7 +225,9 @@
     var lines = [];
     segs.forEach(function (seg) {
       var opHtml = seg.op ? '<span class="cl-t-op">' + esc(seg.op) + '</span> ' : '';
-      if (rawLen(seg.words) <= ONE_LINE_MAX) {
+      // Short, or no flags at all (prose / plain argument list): one wrapping line.
+      var hasFlags = seg.words.some(function (w) { return w.cls === 'flag'; });
+      if (rawLen(seg.words) <= ONE_LINE_MAX || !hasFlags) {
         lines.push(opHtml + joinTokens(seg.words));
         return;
       }
@@ -246,6 +255,123 @@
       });
     });
     return { progs: progs, target: target };
+  }
+
+  // ------------------------------------------------------- script highlighting
+  // Small Python-flavoured highlighter for attached scripts (works acceptably
+  // for bash/JS too: comments, strings, numbers, calls). Returns one HTML string
+  // per source line so line numbers and key-line marks can be added.
+  var PY_KW = {};
+  ('False None True and as assert async await break class continue def del elif else except finally for ' +
+   'from global if import in is lambda nonlocal not or pass raise return try while with yield match case')
+    .split(' ').forEach(function (k) { PY_KW[k] = 1; });
+  var CODE_RE = /(#[^\n]*)|([rRbBfFuU]{0,2}(?:"""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'))|(\b\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?\b|\b0[xX][0-9a-fA-F]+\b)|(@[A-Za-z_][\w.]*)|([A-Za-z_]\w*)(\s*\()?/g;
+
+  function highlightCode(src) {
+    var toks = [], last = 0, m;
+    CODE_RE.lastIndex = 0;
+    while ((m = CODE_RE.exec(src))) {
+      if (m.index > last) toks.push(['', src.slice(last, m.index)]);
+      if (m[1]) toks.push(['cmt', m[1]]);
+      else if (m[2]) toks.push(['str', m[2]]);
+      else if (m[3]) toks.push(['num', m[3]]);
+      else if (m[4]) toks.push(['deco', m[4]]);
+      else if (m[5]) {
+        var w = m[5];
+        var cls = PY_KW[w] ? 'kw' : (m[6] ? 'fn' : (/^(self|cls)$/.test(w) ? 'self' : ''));
+        toks.push([cls, w]);
+        if (m[6]) toks.push(['', m[6]]);
+      }
+      last = CODE_RE.lastIndex;
+    }
+    if (last < src.length) toks.push(['', src.slice(last)]);
+    // Split tokens on newlines so multi-line strings still yield per-line HTML.
+    var lines = [''];
+    toks.forEach(function (t) {
+      t[1].split('\n').forEach(function (part, k) {
+        if (k > 0) lines.push('');
+        if (part) lines[lines.length - 1] += t[0] ? '<span class="cl-py-' + t[0] + '">' + esc(part) + '</span>' : esc(part);
+      });
+    });
+    return lines;
+  }
+
+  var ICON_FILE = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M9.5 13l-2 2 2 2M14.5 13l2 2-2 2"/></svg>';
+
+  // Strip the indentation all lines share (key lines are often deep in a block).
+  function dedent(code) {
+    var lines = code.split('\n');
+    var min = Math.min.apply(null, lines.filter(function (l) { return l.trim(); })
+      .map(function (l) { return l.match(/^[ \t]*/)[0].length; }));
+    return isFinite(min) && min > 0 ? lines.map(function (l) { return l.slice(min); }).join('\n') : code;
+  }
+
+  function renderScript(sc) {
+    var kls = (sc.key_lines || []).map(function (kl) {
+      var codeLines = highlightCode(dedent(kl.code || ''));
+      var lineNo = kl.end_line && kl.end_line > kl.line ? kl.line + '–' + kl.end_line : String(kl.line);
+      return '<li class="cl-kl">' +
+        '<span class="cl-kl-no">L' + esc(lineNo) + '</span>' +
+        '<div class="cl-kl-body">' +
+          '<div class="cl-kl-why">' + esc(kl.why) + '</div>' +
+          '<pre class="cl-kl-code">' + codeLines.join('\n') + '</pre>' +
+          (kl.values ? '<div class="cl-kl-values"><span>values</span>' + esc(kl.values) + '</div>' : '') +
+        '</div>' +
+      '</li>';
+    }).join('');
+    return '<div class="cl-script">' +
+      '<div class="cl-script-head">' + ICON_FILE +
+        '<span class="cl-script-name">' + esc(sc.name) + '</span>' +
+        '<span class="muted">' + (sc.line_count || 0) + ' lines · ' + (sc.key_lines || []).length + ' key line' +
+          ((sc.key_lines || []).length === 1 ? '' : 's') + '</span>' +
+        '<button type="button" class="cl-act cl-script-view" aria-expanded="false">view script</button>' +
+      '</div>' +
+      '<ol class="cl-kls">' + kls + '</ol>' +
+      '<div class="cl-script-src" hidden></div>' +
+    '</div>';
+  }
+
+  var scriptCache = {};
+  function scriptUrl(key, sha) {
+    var parts = key.split('/');
+    return (modal.getAttribute('data-script-url') || '')
+      .replace('__P__', encodeURIComponent(parts[0]))
+      .replace('__S__', encodeURIComponent(parts.slice(1).join('/')))
+      .replace('__H__', encodeURIComponent(sha));
+  }
+  function renderSource(text, sc) {
+    var marks = {};
+    (sc.key_lines || []).forEach(function (kl) {
+      for (var n = kl.line; n <= (kl.end_line || kl.line); n++) marks[n] = kl.why;
+    });
+    var rows = highlightCode(text).map(function (html, i) {
+      var n = i + 1, why = marks[n];
+      return '<div class="cl-src-row' + (why ? ' is-key' : '') + '"' + (why ? ' title="' + esc(why) + '"' : '') + '>' +
+        '<span class="cl-src-no">' + n + '</span><span class="cl-src-code">' + (html || ' ') + '</span></div>';
+    });
+    return '<pre class="cl-src">' + rows.join('') + '</pre>';
+  }
+  function toggleSource(btn, entry) {
+    var box = btn.closest('.cl-script').querySelector('.cl-script-src');
+    var opening = box.hidden;
+    box.hidden = !opening;
+    btn.setAttribute('aria-expanded', String(opening));
+    btn.textContent = opening ? 'hide script' : 'view script';
+    if (!opening || box.getAttribute('data-loaded')) return;
+    var sc = entry.script;
+    box.innerHTML = '<div class="muted small cl-src-loading">Loading…</div>';
+    var p = scriptCache[sc.sha256] || (scriptCache[sc.sha256] = fetch(scriptUrl(currentKey, sc.sha256))
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); }));
+    p.then(function (text) {
+      box.innerHTML = renderSource(text, sc);
+      box.setAttribute('data-loaded', '1');
+      var firstKey = box.querySelector('.cl-src-row.is-key');
+      var pre = box.querySelector('.cl-src');
+      if (firstKey && pre) pre.scrollTop = Math.max(0, firstKey.offsetTop - pre.offsetTop - 60);
+    }).catch(function () {
+      delete scriptCache[sc.sha256];
+      box.innerHTML = '<div class="muted small cl-src-loading">Could not load the script source.</div>';
+    });
   }
 
   // ---------------------------------------------------------------- time
@@ -277,6 +403,7 @@
   var ICON_COPY = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 
   var currentEntries = [];
+  var currentKey = '';
 
   function render(entries) {
     foldId = 0;
@@ -334,6 +461,7 @@
             '</div>' +
             '<pre class="cl-code cl-pretty">' + renderPretty(segs) + '</pre>' +
             '<pre class="cl-code cl-raw" hidden>' + esc(e.command) + '</pre>' +
+            (e.script ? renderScript(e.script) : '') +
           '</div>' +
         '</li>'
       );
@@ -345,7 +473,13 @@
     var q = (filterEl.value || '').trim().toLowerCase();
     listEl.querySelectorAll('.cl-entry').forEach(function (li) {
       var e = currentEntries[+li.getAttribute('data-idx')];
-      var hay = (e.title + '\n' + e.command).toLowerCase();
+      var hay = e.title + '\n' + e.command;
+      if (e.script) {
+        hay += '\n' + e.script.name + (e.script.key_lines || []).map(function (k) {
+          return '\n' + k.code + '\n' + k.why + '\n' + (k.values || '');
+        }).join('');
+      }
+      hay = hay.toLowerCase();
       li.hidden = !!q && hay.indexOf(q) < 0;
     });
     listEl.querySelectorAll('.cmdlog-sep').forEach(function (sep) { sep.hidden = !!q; });
@@ -353,6 +487,7 @@
 
   var lastTrigger = null;
   function open(key, title, trigger) {
+    currentKey = key;
     currentEntries = (LOGS[key] || []).slice().sort(function (a, b) { return a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0; });
     stepEl.textContent = title || key;
     filterEl.value = '';
@@ -392,6 +527,8 @@
     var li = ev.target.closest('.cl-entry');
     if (!li) return;
     var entry = currentEntries[+li.getAttribute('data-idx')];
+    var viewBtn = ev.target.closest('.cl-script-view');
+    if (viewBtn) { toggleSource(viewBtn, entry); return; }
     if (ev.target.closest('.cl-raw-toggle')) {
       var tgl = ev.target.closest('.cl-raw-toggle');
       var showRaw = tgl.getAttribute('aria-pressed') !== 'true';

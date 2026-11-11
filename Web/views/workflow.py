@@ -313,6 +313,20 @@ def add_step_evidence(phase_id, step_id):
     return redirect(url_for("web.workflow"))
 
 
+@web_bp.get("/project/workflow/<phase_id>/<step_id>/script/<sha256>")
+@require_loaded
+def step_script_source(phase_id, step_id, sha256):
+    """Source of a script attached to a step's command log, as plain text for
+    the log popup's script viewer (fetched lazily, not shipped with the page)."""
+    try:
+        _, abs_path = service().current.get_step_script(phase_id, step_id, sha256)
+    except ValueError as e:
+        return str(e), 404, {"Content-Type": "text/plain; charset=utf-8"}
+    if not abs_path.is_file():
+        return "script file missing on disk", 404, {"Content-Type": "text/plain; charset=utf-8"}
+    return abs_path.read_text(encoding="utf-8", errors="replace"), 200, {"Content-Type": "text/plain; charset=utf-8"}
+
+
 @web_bp.get("/project/workflow/<phase_id>/<step_id>/evidence/<evidence_id>")
 @require_loaded
 def download_step_evidence(phase_id, step_id, evidence_id):

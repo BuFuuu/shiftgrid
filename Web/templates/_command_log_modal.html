@@ -2,7 +2,7 @@
    POST /workflow/.../finish; the view ships the non-empty logs as JSON below and
    static/command-log.js renders them (shell tokenizer + highlighter + layout). #}
 <script type="application/json" id="step-command-logs">{{ step_logs | tojson }}</script>
-<div class="endpoint-modal-backdrop" id="cmdlog-modal" hidden>
+<div class="endpoint-modal-backdrop" id="cmdlog-modal" hidden data-script-url="{{ url_for('web.step_script_source', phase_id='__P__', step_id='__S__', sha256='__H__') }}">
   <div class="endpoint-modal cmdlog-modal" role="dialog" aria-modal="true" aria-labelledby="cmdlog-title">
     <div class="endpoint-modal-head cmdlog-head">
       <div class="cmdlog-heading">
@@ -18,4 +18,4 @@
     <ol class="cmdlog-list" id="cmdlog-list"></ol>
   </div>
 </div>
-<script src="{{ url_for('static', filename='command-log.js', v='cmdlog-1') }}"></script>
+<script src="{{ url_for('static', filename='command-log.js', v='cmdlog-3') }}"></script>

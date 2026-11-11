@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 
 from ._shared import *  # noqa: F401,F403
@@ -8,6 +9,13 @@ from ._shared import *  # noqa: F401,F403
 # hard cap so a pasted payload can't bloat project.json.
 COMMAND_LOG_TITLE_MAX_WORDS = 15
 COMMAND_LOG_MAX_CHARS = 20000
+# Optional script attached to a command (python/bash/... the agent wrote). The
+# source is stored as a file; key lines point into it and the server copies the
+# real code for each, so the log shows actual calls, not the model's paraphrase.
+SCRIPT_MAX_BYTES = 256 * 1024
+SCRIPT_MAX_KEY_LINES = 12
+SCRIPT_VALUES_MAX_WORDS = 40
+_KEY_LINE_MAX_SPAN = 8  # a call wrapped over several lines is copied whole, up to this
 
 
 class WorkflowMixin:
@@ -631,12 +639,15 @@ class WorkflowMixin:
                 ]
         return []
 
-    @staticmethod
-    def validate_command_log(entries: list[dict]) -> list[dict]:
+    def validate_command_log(
+        self, entries: list[dict], phase_id: str | None = None, step_id: str | None = None,
+    ) -> list[dict]:
         """Validate + normalise an agent-supplied command log (sent with
-        POST /workflow/.../finish). Pure: raises ValueError on the first bad entry
-        so nothing is stored half-way. Returns entries sorted by timestamp, each
-        `{ts, title, command}` with `ts` as UTC ISO-8601 with milliseconds."""
+        POST /workflow/.../finish). Writes nothing: raises ValueError on the first
+        bad entry so nothing is stored half-way. Returns entries sorted by
+        timestamp, each `{ts, title, command[, script]}` with `ts` as UTC
+        ISO-8601 with milliseconds. A script may reference a file uploaded to
+        this step (POST .../scripts) by sha256 instead of carrying its source."""
         out = []
         for i, e in enumerate(entries or []):
             where = f"command_log[{i}]"
@@ -671,9 +682,158 @@ class WorkflowMixin:
                     "e.g. 2026-11-11T14:03:22.481Z"
                 )
             ts = dt.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-            out.append({"ts": ts, "title": title, "command": command})
+            item = {"ts": ts, "title": title, "command": command}
+            if e.get("script"):
+                item["script"] = self._validate_script(e["script"], f"{where}.script", phase_id, step_id)
+            out.append(item)
         out.sort(key=lambda x: x["ts"])
         return out
+
+    def _validate_script(self, script: dict, where: str, phase_id: str | None, step_id: str | None) -> dict:
+        """Validate a command's attached script, given either by `sha256` of a
+        file uploaded to this step (cheap: no source in the request) or inline
+        as `source`. Key lines must exist in the source; the code for each is
+        copied from the source by the server."""
+        name = str(script.get("name") or "").strip()
+        sha = str(script.get("sha256") or "").strip().lower()
+        if sha and script.get("source"):
+            raise ValueError(f"{where}: send either sha256 (an uploaded script) or source, not both")
+        if sha:
+            uploaded, source = self._uploaded_script(phase_id, step_id, sha, where)
+            name = name or uploaded["name"]
+        else:
+            source = str(script.get("source") or "")
+        if not name:
+            raise ValueError(f"{where}.name is empty — give the script's file name, e.g. sni_probe.py")
+        if not source.strip():
+            raise ValueError(
+                f"{where} has no source — upload the file (POST /api/v1/workflow/phases/{phase_id}/steps/"
+                f"{step_id}/scripts, curl -F file=@probe.py) and send its sha256, or paste it as source"
+            )
+        size = len(source.encode("utf-8"))
+        if size > SCRIPT_MAX_BYTES:
+            raise ValueError(f"{where}.source is {size} bytes (max {SCRIPT_MAX_BYTES})")
+        lines = source.splitlines()
+        key_lines = script.get("key_lines") or []
+        if not key_lines:
+            raise ValueError(
+                f"{where}.key_lines is empty — mark the 2-5 lines that matter (network calls, payloads, "
+                'writes), e.g. [{"line": 14, "why": "TLS handshake with chosen SNI"}]'
+            )
+        if len(key_lines) > SCRIPT_MAX_KEY_LINES:
+            raise ValueError(
+                f"{where}.key_lines has {len(key_lines)} entries (max {SCRIPT_MAX_KEY_LINES}) — keep only the important ones"
+            )
+        out_lines = []
+        for j, kl in enumerate(key_lines):
+            kw = f"{where}.key_lines[{j}]"
+            n = kl.get("line")
+            if not isinstance(n, int) or not 1 <= n <= len(lines):
+                raise ValueError(
+                    f"{kw}.line {n!r} is not a line of the script (1..{len(lines)}) — get line numbers with `grep -n '<call>' <file>`"
+                )
+            if not lines[n - 1].strip():
+                raise ValueError(f"{kw}.line {n} is blank in the script — point at the line with the call")
+            why = " ".join(str(kl.get("why") or "").split())
+            if not why:
+                raise ValueError(f"{kw}.why is empty — say in a few words what this line does")
+            if len(why.split()) > COMMAND_LOG_TITLE_MAX_WORDS:
+                raise ValueError(f"{kw}.why has {len(why.split())} words (max {COMMAND_LOG_TITLE_MAX_WORDS})")
+            values = " ".join(str(kl.get("values") or "").split())
+            if len(values.split()) > SCRIPT_VALUES_MAX_WORDS:
+                raise ValueError(
+                    f"{kw}.values has {len(values.split())} words (max {SCRIPT_VALUES_MAX_WORDS}) — summarise the runtime values"
+                )
+            end = WorkflowMixin._statement_end(lines, n)
+            item = {"line": n, "end_line": end, "code": "\n".join(lines[n - 1:end]), "why": why}
+            if values:
+                item["values"] = values
+            out_lines.append(item)
+        out_lines.sort(key=lambda k: k["line"])
+        return {"name": name, "source": source, "line_count": len(lines), "key_lines": out_lines}
+
+    @staticmethod
+    def _statement_end(lines: list[str], start: int) -> int:
+        """Last line (1-based) of the statement starting at `start`: follows open
+        brackets and trailing backslashes so a wrapped call is copied whole."""
+        depth, i = 0, start - 1
+        limit = min(len(lines), start - 1 + _KEY_LINE_MAX_SPAN)
+        while i < limit:
+            code = re.sub(r"(\"[^\"]*\"|'[^']*'|#.*$)", "", lines[i])
+            depth += sum(code.count(c) for c in "([{") - sum(code.count(c) for c in ")]}")
+            if depth <= 0 and not lines[i].rstrip().endswith("\\"):
+                break
+            i += 1
+        return min(i, limit - 1) + 1
+
+    def _write_script(self, phase_id: str, step_id: str, name: str, data: bytes) -> dict:
+        """Write script bytes under the step's evidence folder, deduped by
+        content hash. Returns `{name, path, sha256, line_count}`."""
+        sha = hashlib.sha256(data).hexdigest()
+        rel_dir = Path(WORKFLOW_DIR) / self._step_key(phase_id, step_id).replace("/", "__") / "scripts"
+        rel_path = rel_dir / f"{sha[:12]}_{_safe_name(name)}"
+        (self.folder / rel_dir).mkdir(parents=True, exist_ok=True)
+        if not (self.folder / rel_path).exists():
+            (self.folder / rel_path).write_bytes(data)
+        line_count = len(data.decode("utf-8").splitlines())
+        return {"name": name, "path": rel_path.as_posix(), "sha256": sha, "line_count": line_count}
+
+    def _store_script(self, phase_id: str, step_id: str, script: dict) -> dict:
+        """Persist a validated script's source and return the log's reference to it."""
+        ref = self._write_script(phase_id, step_id, script["name"], script["source"].encode("utf-8"))
+        return {**{k: v for k, v in script.items() if k != "source"}, **ref}
+
+    def upload_step_script(self, phase_id: str, step_id: str, name: str, data: bytes) -> dict:
+        """Store a script file the agent uploads (POST .../scripts) so a later
+        command_log entry can reference it by sha256 instead of repeating its
+        source. Same guards as raw captures: step enabled and claimed."""
+        if self.is_step_disabled(phase_id, step_id):
+            raise StepDisabledError(
+                f"step {step_id} is disabled in this project by the human operator — "
+                "do not work on it. Move on to the next step in the workflow."
+            )
+        if self.get_step_state(phase_id, step_id).get("status") not in ("focused", "done", "skipped"):
+            raise self._step_focus_required(phase_id, step_id, "upload scripts to it")
+        if not data.strip():
+            raise ValueError("uploaded script is empty — send the file bytes as the `file` part")
+        if len(data) > SCRIPT_MAX_BYTES:
+            raise ValueError(f"script is {len(data)} bytes (max {SCRIPT_MAX_BYTES})")
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            raise ValueError("script is not UTF-8 text — upload the source file, not a binary") from None
+        ref = self._write_script(phase_id, step_id, name, data)
+        state = self.workflow_steps.setdefault(
+            self._step_key(phase_id, step_id), {"status": "pending", "observations": "", "ts": None}
+        )
+        state.setdefault("scripts", {})[ref["sha256"]] = ref
+        return ref
+
+    def _uploaded_script(self, phase_id: str | None, step_id: str | None, sha: str, where: str) -> tuple[dict, str]:
+        """Resolve a script uploaded to this step by its sha256 (or a unique
+        prefix of at least 8 hex chars). Returns (reference, source)."""
+        state = (self.workflow_steps.get(self._step_key(phase_id, step_id)) if phase_id else None) or {}
+        scripts = state.get("scripts") or {}
+        if len(sha) < 8:
+            raise ValueError(f"{where}.sha256 {sha!r} is too short — send at least the first 12 chars of the upload's sha256")
+        hits = [ref for full, ref in scripts.items() if full.startswith(sha)]
+        if len(hits) != 1:
+            why = "matches several uploaded scripts — send more of the hash" if hits else "is not a script uploaded to this step"
+            raise ValueError(
+                f"{where}.sha256 {sha!r} {why}. Upload it first: POST /api/v1/workflow/phases/"
+                f"{phase_id}/steps/{step_id}/scripts (curl -F file=@probe.py) and use the sha256 it returns"
+            )
+        ref = hits[0]
+        return ref, (self.folder / ref["path"]).read_text(encoding="utf-8")
+
+    def get_step_script(self, phase_id: str, step_id: str, sha256: str) -> tuple[dict, Path]:
+        """Look up a script referenced by this step's command log."""
+        state = self.workflow_steps.get(self._step_key(phase_id, step_id)) or {}
+        for e in state.get("command_log", []):
+            sc = e.get("script")
+            if sc and sc.get("sha256") == sha256:
+                return sc, (self.folder / sc["path"]).resolve()
+        raise ValueError(f"unknown script {sha256} for step {phase_id}/{step_id}")
 
     def append_step_command_log(
         self, phase_id: str, step_id: str, entries: list[dict], agent: dict | None = None,
@@ -690,6 +850,9 @@ class WorkflowMixin:
         run = self.phase_runs_completed(phase_id) + 1
         log = state.setdefault("command_log", [])
         for e in entries:
+            e = dict(e)
+            if e.get("script"):
+                e["script"] = self._store_script(phase_id, step_id, e["script"])
             log.append({**e, "run": run, "agent": agent})
         log.sort(key=lambda x: x.get("ts") or "")
         return len(entries)

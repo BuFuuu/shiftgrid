@@ -139,6 +139,15 @@ class RawCaptureMeta(BaseModel):
     added_at: int
 
 
+class ScriptUploadResponse(BaseModel):
+    """Deliberately tiny: the source is never echoed back."""
+
+    sha256: str
+    name: str
+    line_count: int
+    use: str = ""
+
+
 class ChecklistItemResult(BaseModel):
     status: CheckStatus = "pending"
     observations: str = ""
@@ -616,6 +625,37 @@ class AdvancePhaseRequest(StrictRequest):
     )
 
 
+class ScriptKeyLine(StrictRequest):
+    """A line of the attached script that matters. The server copies the code
+    from `source` itself (a call wrapped over several lines is copied whole)."""
+
+    line: int = Field(description="1-based line number in `source`.")
+    why: str = Field(description="What this line does, in a few plain words (max 15), e.g. 'TLS handshake with chosen SNI'.")
+    values: str | None = Field(
+        default=None,
+        description="Runtime values the code doesn't show (max 40 words), e.g. 'looped over 7 SNIs: a.x, b.x, ...'.",
+    )
+
+
+class CommandLogScript(StrictRequest):
+    """The script a command ran (python, bash, ... that you wrote or used).
+    Give EITHER `sha256` of a file you uploaded to this step (preferred — costs
+    no tokens for the source) OR the inline `source` (fine for tiny scripts)."""
+
+    sha256: str | None = Field(
+        default=None,
+        description="Hash returned by POST /workflow/phases/{phase_id}/steps/{step_id}/scripts "
+        "(full or first 12+ chars). Preferred over `source`.",
+    )
+    source: str | None = Field(default=None, description="The full script exactly as run (max 256 KiB), if not uploaded.")
+    name: str | None = Field(
+        default=None, description="Script file name, e.g. sni_probe.py. Optional with sha256 (the upload's name is used)."
+    )
+    key_lines: list[ScriptKeyLine] = Field(
+        description="The 2-5 lines that matter: network calls, payloads, file writes (max 12)."
+    )
+
+
 class CommandLogEntry(StrictRequest):
     """One command you actually executed for this step."""
 
@@ -627,7 +667,12 @@ class CommandLogEntry(StrictRequest):
         description="Why you ran it, in ~10 plain words (max 15), e.g. 'Check which TLS versions the server accepts'."
     )
     command: str = Field(
-        description="The exact command line as executed — verbatim, all flags and arguments, not a paraphrase."
+        description="The exact command line as executed — verbatim, all flags and arguments, not a paraphrase. "
+        "For a script: how you invoked it, e.g. `python3 sni_probe.py 10.0.0.5 443`."
+    )
+    script: CommandLogScript | None = Field(
+        default=None,
+        description="Required when the command ran a script you wrote (incl. heredocs / python -c): its source + key lines.",
     )
 
 

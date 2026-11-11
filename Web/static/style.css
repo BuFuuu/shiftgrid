@@ -3716,3 +3716,109 @@ details.endpoint-card {
   cursor: pointer;
 }
 .cl-fold-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Command log: attached script (key lines + lazy full-source viewer). Python
+   token colours reuse the shell palette so both read as one system. */
+.cl-script {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.cl-script-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--accent);
+}
+.cl-script-name { font: 600 12px var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); color: var(--text); }
+.cl-script-head .muted { font-size: 11px; }
+.cl-act.cl-script-view {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--border-2);
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font: 10.5px var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  cursor: pointer;
+}
+.cl-act.cl-script-view:hover,
+.cl-act.cl-script-view[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.cl-kls { list-style: none; margin: 0; padding: 4px 0; }
+.cl-kl {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 8px;
+  padding: 6px 10px;
+}
+.cl-kl + .cl-kl { border-top: 1px dashed var(--border); }
+.cl-kl-no {
+  padding-top: 1px;
+  font: 600 11px var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: var(--sp-amber);
+  text-align: right;
+}
+.cl-kl-body { min-width: 0; }
+.cl-kl-why { font-size: 12.5px; color: var(--text); margin-bottom: 3px; }
+.cl-kl-code {
+  margin: 0;
+  padding: 5px 9px;
+  border-radius: 5px;
+  background: var(--bg-2);
+  font: 12px/1.55 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+.cl-kl-values {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--text);
+}
+.cl-kl-values span {
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(250,204,21,0.14);
+  color: var(--sp-amber);
+  font: 10px/1.6 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.cl-script-src[hidden] { display: none; }
+.cl-src-loading { padding: 10px; }
+.cl-src {
+  margin: 0;
+  max-height: 420px;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  background: var(--bg-2);
+  font: 12px/1.55 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: var(--text);
+  counter-reset: none;
+}
+.cl-src-row { display: flex; min-width: max-content; }
+.cl-src-row.is-key { background: rgba(250,204,21,0.10); box-shadow: inset 3px 0 0 var(--sp-amber); }
+.cl-src-no {
+  flex: none;
+  width: 44px;
+  padding-right: 10px;
+  text-align: right;
+  color: var(--muted);
+  user-select: none;
+  opacity: 0.7;
+}
+.cl-src-row.is-key .cl-src-no { color: var(--sp-amber); opacity: 1; font-weight: 700; }
+.cl-src-code { white-space: pre; padding-right: 12px; }
+.cl-py-kw   { color: var(--sp-purple); font-weight: 600; }
+.cl-py-fn   { color: var(--accent); }
+.cl-py-str  { color: var(--sp-green); }
+.cl-py-num  { color: var(--sp-amber); }
+.cl-py-cmt  { color: var(--muted); font-style: italic; }
+.cl-py-deco { color: var(--sp-magenta); }
+.cl-py-self { color: var(--sp-orange); }

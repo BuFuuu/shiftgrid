@@ -293,6 +293,13 @@ def _finish_gating(state: dict, project=None, phase_id: str | None = None, step_
     return (not missing, missing)
 
 
+_COMMAND_LOG_EXAMPLE = {
+    "ts": "2026-11-11T14:03:22.481Z",
+    "title": "Check which TLS versions the server accepts",
+    "command": "nmap -Pn -p 443 --script ssl-enum-ciphers target.example",
+}
+
+
 def _next_action_for_step(project, workflow, phase: dict, step: dict, state: dict) -> NextAction:
     sid = _step_id(step)
     # Focus is mandatory before any result write: a pending step must be claimed
@@ -302,7 +309,11 @@ def _next_action_for_step(project, workflow, phase: dict, step: dict, state: dic
             action="focus_step",
             method="PUT",
             path=f"/api/v1/workflow/phases/{phase['id']}/steps/{sid}",
-            why="claim this step before working on it: set its status to 'focused' first",
+            why=(
+                "claim this step before working on it: set its status to 'focused' first. "
+                "While working, note every command you run (UTC timestamp, short why, exact command line) "
+                "— you send them as `command_log` on finish"
+            ),
             example_body={"status": "focused"},
         )
     can_finish, missing = _finish_gating(state, project, phase["id"], sid)
@@ -312,10 +323,14 @@ def _next_action_for_step(project, workflow, phase: dict, step: dict, state: dic
             method="POST",
             path=f"/api/v1/workflow/phases/{phase['id']}/steps/{sid}/finish",
             why=(
-                "status is done|skipped and observations are set"
+                "status is done|skipped and observations are set; send `command_log` — every command you "
+                "executed for this step, verbatim, with its UTC timestamp and a ~10-word why"
                 + ("; project requires inline notes diff (notes_old_string + notes_new_string)" if project.notes_required else "")
             ),
-            example_body=dict(_NOTES_REQUIRED_EXAMPLE) if project.notes_required else None,
+            example_body={
+                "command_log": [dict(_COMMAND_LOG_EXAMPLE)],
+                **(_NOTES_REQUIRED_EXAMPLE if project.notes_required else {}),
+            },
         )
     if "observations" in missing and "status" in missing:
         return NextAction(

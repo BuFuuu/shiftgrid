@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from ._shared import *  # noqa: F401,F403
+
+# Command log (POST /workflow/.../finish): a short human 'why' per command, and a
+# hard cap so a pasted payload can't bloat project.json.
+COMMAND_LOG_TITLE_MAX_WORDS = 15
+COMMAND_LOG_MAX_CHARS = 20000
 
 
 class WorkflowMixin:
@@ -623,6 +630,69 @@ class WorkflowMixin:
                     "mark each one tested or out-of-scope before finishing this step"
                 ]
         return []
+
+    @staticmethod
+    def validate_command_log(entries: list[dict]) -> list[dict]:
+        """Validate + normalise an agent-supplied command log (sent with
+        POST /workflow/.../finish). Pure: raises ValueError on the first bad entry
+        so nothing is stored half-way. Returns entries sorted by timestamp, each
+        `{ts, title, command}` with `ts` as UTC ISO-8601 with milliseconds."""
+        out = []
+        for i, e in enumerate(entries or []):
+            where = f"command_log[{i}]"
+            title = " ".join(str(e.get("title") or "").split())
+            command = str(e.get("command") or "").strip()
+            raw_ts = str(e.get("ts") or "").strip()
+            if not command:
+                raise ValueError(f"{where}.command is empty — give the exact command line you executed")
+            if len(command) > COMMAND_LOG_MAX_CHARS:
+                raise ValueError(
+                    f"{where}.command is {len(command)} chars (max {COMMAND_LOG_MAX_CHARS}) — "
+                    "put bulky payloads in a file and log the command that uses it"
+                )
+            if not title:
+                raise ValueError(f"{where}.title is empty — say in a few plain words WHY you ran it")
+            words = len(title.split())
+            if words > COMMAND_LOG_TITLE_MAX_WORDS:
+                raise ValueError(
+                    f"{where}.title has {words} words (max {COMMAND_LOG_TITLE_MAX_WORDS}) — "
+                    "keep it a short why, e.g. 'Check which TLS versions the server accepts'"
+                )
+            try:
+                dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+            except ValueError:
+                raise ValueError(
+                    f"{where}.ts {raw_ts!r} is not ISO-8601 — record it when you run the command, "
+                    "e.g. `date -u +%Y-%m-%dT%H:%M:%S.%3NZ` -> 2026-11-11T14:03:22.481Z"
+                ) from None
+            if dt.tzinfo is None:
+                raise ValueError(
+                    f"{where}.ts {raw_ts!r} has no timezone — use UTC with a trailing Z, "
+                    "e.g. 2026-11-11T14:03:22.481Z"
+                )
+            ts = dt.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            out.append({"ts": ts, "title": title, "command": command})
+        out.sort(key=lambda x: x["ts"])
+        return out
+
+    def append_step_command_log(
+        self, phase_id: str, step_id: str, entries: list[dict], agent: dict | None = None,
+    ) -> int:
+        """Append already-validated entries (see validate_command_log) to the
+        step's command log. The log is history: it survives phase re-runs, and
+        each entry records the run it belongs to and who logged it."""
+        if not entries:
+            return 0
+        key = self._step_key(phase_id, step_id)
+        state = self.workflow_steps.setdefault(
+            key, {"status": "pending", "observations": "", "ts": None}
+        )
+        run = self.phase_runs_completed(phase_id) + 1
+        log = state.setdefault("command_log", [])
+        for e in entries:
+            log.append({**e, "run": run, "agent": agent})
+        log.sort(key=lambda x: x.get("ts") or "")
+        return len(entries)
 
     def mark_step_finished(self, phase_id: str, step_id: str, agent: dict | None = None) -> dict:
         """Flip the `finished` flag on a workflow step. POST /workflow/.../finish

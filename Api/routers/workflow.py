@@ -478,11 +478,18 @@ def finish_phase_step(
             },
         )
 
+    # Validate the command log up front so a bad entry rejects the whole call
+    # before anything (notes diff, finished flag) is applied.
+    command_log = p.validate_command_log([e.model_dump() for e in body.command_log])
+
     # Re-calling /finish on an already-finished step is idempotent and skips
-    # the notes gate — the agent already paid that cost the first time.
+    # the notes gate — the agent already paid that cost the first time. A
+    # command_log sent on a re-call is still appended (a forgotten log).
     if not already_finished:
         with _notes_gate(p, body.notes_old_string, body.notes_new_string):
             p.mark_step_finished(phase_id, step_id, agent=agent.tag())
+    if not already_finished or command_log:
+        p.append_step_command_log(phase_id, step_id, command_log, agent=agent.tag())
         service.save(p)
 
     finished = StepRef(**_step_ref(p, phase, step, workflow=wf))

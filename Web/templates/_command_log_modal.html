@@ -1,0 +1,21 @@
+{# Command-log popup for workflow steps. The agent sends `command_log` with
+   POST /workflow/.../finish; the view ships the non-empty logs as JSON below and
+   static/command-log.js renders them (shell tokenizer + highlighter + layout). #}
+<script type="application/json" id="step-command-logs">{{ step_logs | tojson }}</script>
+<div class="endpoint-modal-backdrop" id="cmdlog-modal" hidden>
+  <div class="endpoint-modal cmdlog-modal" role="dialog" aria-modal="true" aria-labelledby="cmdlog-title">
+    <div class="endpoint-modal-head cmdlog-head">
+      <div class="cmdlog-heading">
+        <h2 id="cmdlog-title">Command log</h2>
+        <div class="cmdlog-step" id="cmdlog-step"></div>
+      </div>
+      <div class="endpoint-modal-head-actions">
+        <input type="search" class="cmdlog-filter" id="cmdlog-filter" placeholder="Filter commands..." aria-label="Filter commands">
+        <button type="button" class="endpoint-modal-close" id="cmdlog-close" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div class="cmdlog-summary" id="cmdlog-summary"></div>
+    <ol class="cmdlog-list" id="cmdlog-list"></ol>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='command-log.js', v='cmdlog-1') }}"></script>

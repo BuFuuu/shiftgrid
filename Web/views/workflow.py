@@ -21,6 +21,9 @@ def workflow():
             step_id = step.get("id") or check_id
             step_states[f"{phase['id']}/{step_id}"] = project.get_step_state(phase["id"], step_id, workflow=wf)
             step_access[f"{phase['id']}/{step_id}"] = project.workflow_step_access(wf, phase["id"], step_id)
+    # Agent-recorded command logs per step, rendered by the "log" popup
+    # (static/command-log.js). Only non-empty logs are shipped to the page.
+    step_logs = {k: st["command_log"] for k, st in step_states.items() if st.get("command_log")}
     focused_global = project.focused_global_checks()
     # The "recently worked on" panel is meaningful only while the agent is in
     # the Work-on-Checklist phase. Once we've advanced past it, clear the list.
@@ -34,6 +37,7 @@ def workflow():
         "workflow.html",
         section="workflow",
         step_states=step_states,
+        step_logs=step_logs,
         page_progress=ctx["workflow_progress"],
         step_access=step_access,
         phase_views=phase_views,

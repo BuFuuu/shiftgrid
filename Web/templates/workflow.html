@@ -234,6 +234,8 @@
                 <button type="button" class="ctx-icon-svg step-upload-toggle" aria-label="Upload raw capture" data-tooltip="Upload raw 3rd-party tool output / screenshot / log" data-empty="true" aria-expanded="false" {% if step_disabled %}disabled{% endif %}>
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 </button>
+                {% set step_log_n = (ss.command_log | length) if ss.command_log is defined and ss.command_log else 0 %}
+                <button type="button" class="step-log-btn" data-log-key="{{ phase.id }}/{{ step_id }}" data-step-title="{{ step.title or step_id | replace('_', ' ') | title }}" data-empty="{{ 'false' if step_log_n else 'true' }}" aria-label="Show command log" title="{{ (step_log_n ~ ' command' ~ ('' if step_log_n == 1 else 's') ~ ' executed by the agent') if step_log_n else 'No commands logged yet -- the agent records them when it finishes the step' }}">log{% if step_log_n %}<span class="step-log-count">{{ step_log_n }}</span>{% endif %}</button>
                 {% set _is_finished = ss.finished %}
                 {% set _endpoints_block = phase.id == 'endpoint_testing' and step_id in ('test_endpoints', 'review_notes_reopen_endpoints') and not endpoint_testing_status.ready %}
                 {% set _can_finish = ss.status in ('done', 'skipped') and (ss.observations or '') | trim and not step_disabled and not _endpoints_block %}
@@ -419,6 +421,7 @@
   </div>
 </div>
 {% endif %}
+{% include "_command_log_modal.html" %}
 <script>
   (function () {
     document.querySelectorAll('.ctx-toggle').forEach(function (btn) {

@@ -616,8 +616,30 @@ class AdvancePhaseRequest(StrictRequest):
     )
 
 
+class CommandLogEntry(StrictRequest):
+    """One command you actually executed for this step."""
+
+    ts: str = Field(
+        description="When you ran it: UTC ISO-8601 with milliseconds, e.g. 2026-11-11T14:03:22.481Z "
+        "(`date -u +%Y-%m-%dT%H:%M:%S.%3NZ`). Record it at execution time, not at finish time."
+    )
+    title: str = Field(
+        description="Why you ran it, in ~10 plain words (max 15), e.g. 'Check which TLS versions the server accepts'."
+    )
+    command: str = Field(
+        description="The exact command line as executed — verbatim, all flags and arguments, not a paraphrase."
+    )
+
+
 class FinishStepRequest(NotesEditFields):
-    """Body for POST /workflow/.../finish. Empty when `notes_required=False`."""
+    """Body for POST /workflow/.../finish. Carry `command_log`: every command you
+    executed for this step (the operator reviews it in the UI). Add the notes diff
+    fields only when `notes_required=True`."""
+
+    command_log: list[CommandLogEntry] = Field(
+        default_factory=list,
+        description="Every command you executed for this step, in order. Empty only if the step ran no commands.",
+    )
 
 
 class UnfocusEndpointRequest(NotesEditFields):

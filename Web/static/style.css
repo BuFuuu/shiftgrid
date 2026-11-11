@@ -3522,3 +3522,197 @@ details.endpoint-card {
   .update-waiting-dot { animation: none; }
 }
 
+
+/* ---------- Workflow step command log ("log" button + popup) ----------
+   The agent sends every executed command with POST /workflow/.../finish; the
+   popup (static/command-log.js) shows them as a timeline with highlighted,
+   re-flowed shell commands. Token colours come from the master spectrum. */
+.step-log-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--border-2);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font: 500 10.5px/1 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.step-log-btn[data-empty="true"] { opacity: 0.55; }
+.step-log-btn[data-empty="false"] { color: var(--accent); border-color: rgba(28,156,236,0.45); }
+.step-log-btn:hover { color: var(--text); border-color: var(--accent); background: var(--bg-2); opacity: 1; }
+.step-log-count {
+  min-width: 14px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: rgba(28,156,236,0.15);
+  color: var(--accent);
+  font-size: 9.5px;
+  text-align: center;
+}
+
+#cmdlog-modal .cmdlog-modal {
+  max-width: 980px;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 6px;
+}
+.cmdlog-head { align-items: flex-start; margin-bottom: 8px; }
+.cmdlog-heading { min-width: 0; }
+.cmdlog-step {
+  margin-top: 3px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmdlog-filter {
+  width: 200px;
+  padding: 5px 9px;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 12.5px;
+}
+.cmdlog-filter:focus { outline: none; border-color: var(--accent); }
+.cmdlog-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 0 0 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text);
+}
+.cmdlog-summary:empty { display: none; }
+.cmdlog-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 4px 12px 0;
+  overflow-y: auto;
+  min-height: 0;
+}
+.cmdlog-empty { padding: 28px 8px; text-align: center; color: var(--text); line-height: 1.6; }
+.cmdlog-sep {
+  margin: 12px 0 6px;
+  padding-left: 112px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cmdlog-sep-run { color: var(--accent); }
+
+.cl-entry {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 12px;
+}
+.cl-time {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 9px 14px 0 0;
+  border-right: 2px solid var(--border);
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  cursor: default;
+}
+/* Timeline dot on the rail */
+.cl-time::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  top: 13px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--accent);
+}
+.cl-clock { font-size: 12.5px; color: var(--text); font-variant-numeric: tabular-nums; }
+.cl-ms { color: var(--muted); font-size: 11px; }
+.cl-delta { margin-top: 2px; font-size: 10.5px; color: var(--muted); }
+.cl-body { min-width: 0; padding: 6px 0 12px; }
+.cl-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-bottom: 6px;
+}
+.cl-num { font-family: var(--vt-accent-font); font-size: 15px; color: var(--muted); }
+.cl-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.cl-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.cl-chip {
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  font: 11px/1.5 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  white-space: nowrap;
+}
+.cl-chip-cmd { color: var(--accent); border-color: rgba(28,156,236,0.35); }
+.cl-chip-target { color: var(--sp-orange); max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.cl-actions { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; }
+.cl-act.cl-raw-toggle {
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font: 10.5px var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  cursor: pointer;
+}
+.cl-act.cl-raw-toggle:hover { color: var(--text); border-color: var(--accent); }
+.cl-act.cl-raw-toggle[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.cl-code {
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid rgba(28,156,236,0.5);
+  border-radius: 6px;
+  background: var(--bg-2);
+  color: var(--text);
+  font: 12px/1.6 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+}
+.cl-code[hidden] { display: none; }
+.cl-indent { user-select: none; }
+.cl-t-cmd  { color: var(--accent); font-weight: 700; }
+.cl-t-wrap { color: var(--muted); font-style: italic; }
+.cl-t-sub  { color: var(--sp-cyan); font-weight: 600; }
+.cl-t-flag { color: var(--sp-purple); }
+.cl-t-str  { color: var(--sp-green); }
+.cl-t-url  { color: var(--sp-teal); text-decoration: underline; text-decoration-color: rgba(45,212,191,0.35); text-underline-offset: 2px; }
+.cl-t-host { color: var(--sp-orange); font-weight: 600; }
+.cl-t-path { color: var(--sp-indigo); }
+.cl-t-var, .cl-t-env { color: var(--sp-magenta); }
+.cl-t-num  { color: var(--sp-amber); }
+.cl-t-op, .cl-t-redir { color: var(--muted); font-weight: 700; }
+.cl-t-cont { color: var(--border-2); user-select: none; }
+.cl-fold-btn {
+  margin-left: 4px;
+  padding: 0 6px;
+  border: 1px dashed var(--border-2);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--muted);
+  font: 10.5px/1.6 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  cursor: pointer;
+}
+.cl-fold-btn:hover { color: var(--accent); border-color: var(--accent); }

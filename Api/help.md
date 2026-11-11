@@ -52,10 +52,10 @@ the `file` field, never base64 or JSON. E.g. `curl -F file=@nmap.txt -F source_t
 1. GET /api/v1/notes  — read the pentest notes for ongoing context
 2. GET /api/v1/workflow/now  — see the current step + next action
 3. PUT /api/v1/workflow/phases/{phase_id}/steps/{step_id} — choose a step to work on and set status to focused. Prioritize pending steps first
-3. action: do the work in your environment
+3. action: do the work in your environment. For every command you run, record its UTC timestamp at execution time (`date -u +%Y-%m-%dT%H:%M:%S.%3NZ`), a ~10-word *why*, and the exact command line
 4. PUT /api/v1/workflow/phases/{phase_id}/steps/{step_id}  — set observations and status (done|skipped) (capped at 200 words) (Use newlines to separate thoughts, `**bold**` for key findings, `*italic*` for emphasis, and `# heading` for section labels)
 5. POST /api/v1/workflow/phases/{phase_id}/steps/{step_id}/raw-captures (not mandatory but very important)  — attach raw tool output, screenshots, captured HTTP responses, etc. NEVER for anything you wrote, narrated, summarized, or wrapped
-6. POST /api/v1/workflow/phases/{phase_id}/steps/{step_id}/finish  — moves /workflow/now to the next step (when notes_required=true, carry notes_old_string + notes_new_string in the body)
+6. POST /api/v1/workflow/phases/{phase_id}/steps/{step_id}/finish  — moves /workflow/now to the next step. Body: `{"command_log": [{"ts": "2026-11-11T14:03:22.481Z", "title": "Check which TLS versions the server accepts", "command": "nmap -Pn -p 443 --script ssl-enum-ciphers host"}]}` — every command you executed for this step, verbatim (the operator audits it). When notes_required=true, also carry notes_old_string + notes_new_string
 [7. optional: PATCH /api/v1/notes  — include insights from this step (optional, only when notes_required=false)]
 8. only when phase_complete=true: POST /api/v1/workflow/advance (advancing never requires a notes diff, even when notes_required=true — PATCH /api/v1/notes separately if you have context to record; a multi-run phase resets its steps to pending and loops instead of advancing — the `next` hint shows `(run N/M)`; see Runs)
 

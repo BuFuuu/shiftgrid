@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 from fastapi import HTTPException, UploadFile
 
 from Domain import (
+    RunAgainError,
     NotesOldStringNotFound,
     NotesOldStringNotUnique,
     NotesImmutableRegionViolation,
@@ -36,7 +39,7 @@ def _update_notes_hint(project) -> NextAction:
             why=(
                 "This project has notes_required=true. Notes were updated inline with this "
                 "action (via notes_old_string/notes_new_string in the body) and the next "
-                "finish/unfocus/check-done call MUST do the same — same Edit-tool "
+                "step-finish/unfocus/check-result call MUST do the same — same Edit-tool "
                 "semantics as this endpoint. (Phase advance is exempt: it never requires a "
                 "notes diff.) PATCH /api/v1/notes is still available between "
                 "those actions if you need to record free-form context. Read GET /api/v1/notes "
@@ -112,11 +115,56 @@ def _scope_item_results(item: dict, endpoint_id: str | None) -> dict:
     return {**item, "results": scoped}
 
 
+@contextmanager
+def _notes_gate(project, notes_old_string, notes_new_string):
+    """Wrap a notes-gated action so its inline notes diff is all-or-nothing.
+
+        with _notes_gate(p, body.notes_old_string, body.notes_new_string):
+            p.some_transition(...)
+
+    The diff is validated and applied up front (so diff errors are reported
+    before transition errors), then rolled back if the wrapped transition
+    raises. Without the rollback a failed action would leave the edit in the
+    in-memory project — persisted by the next save — and a retry with the same
+    diff would fail with old_string_not_found. RunAgainError is not a failure:
+    the route persists the runs-gate reset, so the notes edit is kept with it."""
+    before = project.data.get("notes", "")
+    _enforce_notes_update(project, notes_old_string, notes_new_string)
+    after = project.data.get("notes", "")
+    try:
+        yield
+    except RunAgainError:
+        raise
+    except BaseException:
+        # Only undo our own edit; leave notes alone if something else wrote since.
+        if project.data.get("notes", "") == after:
+            project.data["notes"] = before
+        raise
+
+
+def _reject_misplaced_notes_diff(body, *, diff_goes_on: str) -> None:
+    """For finish verbs that take no notes diff: refuse one instead of silently
+    dropping it, and say where it belongs. Previously FastAPI ignored the body,
+    so agents believed the diff was applied here."""
+    if body is not None and (body.notes_old_string is not None or body.notes_new_string is not None):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "notes_diff_not_accepted_here",
+                "message": (
+                    "this call takes no notes diff and nothing was changed. "
+                    f"The diff belongs on {diff_goes_on}. Resend this call with an empty body."
+                ),
+            },
+        )
+
+
 def _enforce_notes_update(project, notes_old_string, notes_new_string) -> None:
     """When `project.notes_required` is True, apply an Edit-tool-style notes
     update in-line with a finish/done action. No-op when the flag is
     off. Raises HTTPException(409) when the fields are missing or unchanged,
-    HTTPException(400) on edit validation failures (same shape as PATCH /notes)."""
+    HTTPException(400) on edit validation failures (same shape as PATCH /notes).
+    Routes should use `_notes_gate` so the edit is undone if the action fails."""
     if not project.notes_required:
         return
     if notes_old_string is None or notes_new_string is None:

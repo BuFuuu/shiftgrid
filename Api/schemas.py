@@ -21,6 +21,13 @@ EvidenceSourceType = Literal[
 ]
 
 
+class StrictRequest(BaseModel):
+    """Base for every JSON request body: unknown fields are rejected (422)
+    instead of silently dropped, so a guessed field name (e.g. `feature_group_id`
+    for `group_id`) fails loudly rather than returning 200 and doing nothing."""
+    model_config = {"extra": "forbid"}
+
+
 # -------- catalog --------
 
 class AgentTag(BaseModel):
@@ -264,7 +271,7 @@ class ReopenedPhasesResponse(BaseModel):
     phases: list[PhaseView]
 
 
-class UpdatePhaseContextRequest(BaseModel):
+class UpdatePhaseContextRequest(StrictRequest):
     description: str
 
 
@@ -458,7 +465,7 @@ class CredentialsListResponse(BaseModel):
 
 # -------- requests --------
 
-class AddEndpointRequest(BaseModel):
+class AddEndpointRequest(StrictRequest):
     name: str = Field(
         min_length=1,
         description=(
@@ -471,7 +478,7 @@ class AddEndpointRequest(BaseModel):
     observations: str = ""
 
 
-class UpdateEndpointRequest(BaseModel):
+class UpdateEndpointRequest(StrictRequest):
     # The endpoint address (name) is omitted on purpose: it is the endpoint's
     # identity and cannot be changed after creation.
     type: str | None = None
@@ -494,15 +501,18 @@ class UpdateEndpointRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-class CreateFeatureGroupRequest(BaseModel):
+class CreateFeatureGroupRequest(StrictRequest):
     name: str = Field(min_length=1)
 
 
-class SetEndpointFeatureGroupRequest(BaseModel):
-    group_id: str | None = None
+class SetEndpointFeatureGroupRequest(StrictRequest):
+    group_id: str | None = Field(
+        description="Required. Id of the feature group (from GET /api/v1/feature-groups) "
+        "to move the endpoint into; null, empty, or '_unassigned' to unassign it.",
+    )
 
 
-class NotesEditFields(BaseModel):
+class NotesEditFields(StrictRequest):
     """Optional Edit-tool-style notes update piggy-backed on finish/done
     actions. When the project has `notes_required=True`, both fields become
     mandatory on the gated endpoints and the API rejects the action otherwise.
@@ -524,7 +534,7 @@ class UpdateCheckStatusRequest(NotesEditFields):
     model_config = {"extra": "forbid"}
 
 
-class UpdateCheckObservationsRequest(BaseModel):
+class UpdateCheckObservationsRequest(StrictRequest):
     observations: str
     base_observations: str | None = Field(default=None, description=BASE_OBSERVATIONS_DESC)
     endpoint_id: str | None = None
@@ -533,7 +543,7 @@ class UpdateCheckObservationsRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-class SetRunsRequest(BaseModel):
+class SetRunsRequest(StrictRequest):
     runs: int | str = Field(
         description="Total times to run before it settles: a positive int (capped at 20) "
         "or 'indefinite' for an unbounded loop. 1 = run once (no looping).",
@@ -586,14 +596,14 @@ _REALLY_RAW_CAPTURE_DESC = (
 # _REALLY_RAW_CAPTURE_DESC above and are reused as Form() field descriptions.
 
 
-class BulkStepUpdateRequest(BaseModel):
+class BulkStepUpdateRequest(StrictRequest):
     status: StepStatus | None = None
     observations: str | None = None
     base_observations: str | None = Field(default=None, description=BASE_OBSERVATIONS_DESC)
     endpoint_id: str | None = None
 
 
-class AdvancePhaseRequest(BaseModel):
+class AdvancePhaseRequest(StrictRequest):
     skip_optional: bool = False
     phase_id: str | None = Field(
         default=None,
@@ -614,14 +624,21 @@ class UnfocusEndpointRequest(NotesEditFields):
     """Body for POST /endpoint/{id}/unfocus. Empty when `notes_required=False`."""
 
 
-class AddCredentialRequest(BaseModel):
+class NoNotesDiffRequest(NotesEditFields):
+    """Optional body for POST /check/{id}/finish and POST /endpoint/{id}/finish.
+    These calls take NO notes diff — send no body. The notes fields exist only so
+    a misplaced diff is refused with 400 (pointing at where it belongs) instead
+    of being silently dropped."""
+
+
+class AddCredentialRequest(StrictRequest):
     username: str = ""
     password: str = ""
     observations: str = ""
     source: str = "ai"
 
 
-class EditNotesRequest(BaseModel):
+class EditNotesRequest(StrictRequest):
     """Edit-tool style notes update: replace one occurrence of `old_string`
     with `new_string`. `old_string` must match the current notes verbatim
     and uniquely — re-read GET /api/v1/notes first if unsure. Edits that
@@ -631,18 +648,18 @@ class EditNotesRequest(BaseModel):
     new_string: str
 
 
-class SetInfoRequest(BaseModel):
+class SetInfoRequest(StrictRequest):
     info: str
 
 
-class CreateFindingRequest(BaseModel):
+class CreateFindingRequest(StrictRequest):
     title: str = Field(min_length=1)
     severity: str = "info"
     description: str = ""
     recommendation: str = ""
 
 
-class UpdateFindingRequest(BaseModel):
+class UpdateFindingRequest(StrictRequest):
     title: str | None = None
     severity: str | None = None
     description: str | None = None

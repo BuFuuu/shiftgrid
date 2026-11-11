@@ -22,12 +22,14 @@ from ..schemas import (
     SetEndpointFeatureGroupRequest,
     UpdateEndpointRequest,
     EndpointActionResponse,
+    NoNotesDiffRequest,
     SetRunsRequest,
     EndpointRunsResponse,
 )
 from .._common import (
     _update_notes_hint,
-    _enforce_notes_update,
+    _notes_gate,
+    _reject_misplaced_notes_diff,
     _endpoint_loop_next,
     _guard_observation_overwrite,
 )
@@ -148,11 +150,11 @@ def unfocus_endpoint(
     `notes_required=True`, the body must also carry `notes_old_string` +
     `notes_new_string` — otherwise 409 `notes_required`."""
     p = service.current
-    _enforce_notes_update(p, body.notes_old_string, body.notes_new_string)
-    try:
-        endpoint = p.unfocus_endpoint(endpoint_id)
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+    with _notes_gate(p, body.notes_old_string, body.notes_new_string):
+        try:
+            endpoint = p.unfocus_endpoint(endpoint_id)
+        except ValueError as e:
+            raise HTTPException(status_code=409, detail=str(e))
     service.save(p)
     return endpoint
 
@@ -171,6 +173,7 @@ def confirm_endpoint_checks_adjusted(endpoint_id: str, service: ProjectService =
 @router.post("/endpoint/{endpoint_id}/finish", response_model=EndpointUpdateResponse)
 def finish_endpoint(
     endpoint_id: str,
+    body: NoNotesDiffRequest | None = Body(default=None),
     service: ProjectService = Depends(require_loaded),
     agent: Agent = Depends(require_agent),
 ):
@@ -178,7 +181,11 @@ def finish_endpoint(
     mirroring POST /workflow/.../finish and POST /check/{id}/finish. Same guards
     as PUT {"status": "tested"}: observations recorded, checks adjusted, every
     per-endpoint check non-pending — 409 otherwise. The `next` hint then points
-    at the next candidate (or phase advance)."""
+    at the next candidate (or phase advance). Takes no notes diff (the diffs
+    went on each check's PUT .../status) — sending one here is 400."""
+    _reject_misplaced_notes_diff(
+        body, diff_goes_on="each per-endpoint check's PUT /api/v1/check/{check_id}/status (passed|warning|vulnerable)"
+    )
     p = service.current
     try:
         endpoint = p.set_endpoint_status(endpoint_id, "tested", agent=agent.tag())

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import random
+from contextlib import nullcontext
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from Application import ProjectService
@@ -26,11 +27,13 @@ from ..schemas import (
     UpdateCheckObservationsRequest,
     UpdateCheckStatusRequest,
     FinishCheckResponse,
+    NoNotesDiffRequest,
     SetRunsRequest,
     CheckRunsResponse,
 )
 from .._common import (
-    _enforce_notes_update,
+    _notes_gate,
+    _reject_misplaced_notes_diff,
     _endpoint_loop_next,
     _guard_observation_overwrite,
     _scope_item_results,
@@ -249,19 +252,19 @@ def put_check_status(
     `notes_old_string` + `notes_new_string`. Statuses that imply no new knowledge
     (skipped, failed, not applicable, pending, focused) are not gated on notes."""
     p = service.current
-    if body.status in _CHECK_STATUS_REQUIRES_NOTES:
-        _enforce_notes_update(p, body.notes_old_string, body.notes_new_string)
-    try:
-        r = p.set_check_status(check_id, body.status, endpoint_id=body.endpoint_id, agent=agent.tag())
-    except ValueError as e:
-        msg = str(e)
-        if msg.startswith("unknown check"):
-            status_code = 404
-        elif msg.startswith("bad status"):
-            status_code = 400
-        else:
-            status_code = 409
-        raise HTTPException(status_code=status_code, detail=msg)
+    gated = body.status in _CHECK_STATUS_REQUIRES_NOTES
+    with _notes_gate(p, body.notes_old_string, body.notes_new_string) if gated else nullcontext():
+        try:
+            r = p.set_check_status(check_id, body.status, endpoint_id=body.endpoint_id, agent=agent.tag())
+        except ValueError as e:
+            msg = str(e)
+            if msg.startswith("unknown check"):
+                status_code = 404
+            elif msg.startswith("bad status"):
+                status_code = 400
+            else:
+                status_code = 409
+            raise HTTPException(status_code=status_code, detail=msg)
     service.save(p)
     next_action = None
     if body.endpoint_id:
@@ -274,13 +277,19 @@ def put_check_status(
 @router.post("/check/{check_id}/finish", response_model=FinishCheckResponse)
 def finish_check(
     check_id: str,
+    body: NoNotesDiffRequest | None = Body(default=None),
     service: ProjectService = Depends(require_loaded),
     agent: Agent = Depends(require_agent),
 ):
     """Mark a global-scope check finished. Requires status != pending and a
     non-empty observations field. Implicitly clears the `focused` flag. The
     Work-on-Checklist phase advances only after every global-check is finished.
-    The response's `next` hint points at the next pending check (or advance)."""
+    The response's `next` hint points at the next pending check (or advance).
+    Takes no notes diff: when notes_required=true the diff goes on the
+    PUT /check/{check_id}/status call that set the result — sending one here is 400."""
+    _reject_misplaced_notes_diff(
+        body, diff_goes_on=f"PUT /api/v1/check/{check_id}/status (passed|warning|vulnerable)"
+    )
     p = service.current
     try:
         r = p.finish_global_check(check_id, agent=agent.tag())

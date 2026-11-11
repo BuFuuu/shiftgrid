@@ -48,7 +48,7 @@ from .._common import (
     _finish_gating,
     _update_notes_hint,
     _optional_notes_hint,
-    _enforce_notes_update,
+    _notes_gate,
     _guard_observation_overwrite,
     _read_raw_capture_upload,
     next_step_to_action,
@@ -481,8 +481,8 @@ def finish_phase_step(
     # Re-calling /finish on an already-finished step is idempotent and skips
     # the notes gate — the agent already paid that cost the first time.
     if not already_finished:
-        _enforce_notes_update(p, body.notes_old_string, body.notes_new_string)
-        p.mark_step_finished(phase_id, step_id, agent=agent.tag())
+        with _notes_gate(p, body.notes_old_string, body.notes_new_string):
+            p.mark_step_finished(phase_id, step_id, agent=agent.tag())
         service.save(p)
 
     finished = StepRef(**_step_ref(p, phase, step, workflow=wf))

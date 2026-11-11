@@ -68,9 +68,9 @@ During the "Work on Checklist" phase, advance only after every global-scope chec
 3. PUT /api/v1/check/{check_id}/status `{"status": "focused"}`  — claim it (mandatory before any result write). Multiple agents may focus the same item, but unfocused items should be prioritized first
 4. do the work in your environment
 5. PUT /api/v1/check/{check_id}/observations 
-6. POST /api/v1/check/{check_id}/raw-captures
-7. PUT /api/v1/check/{check_id}/status  — passed, vulnerable, warning, failed, not applicable (be precise about this! `passed` = ran and target is fine; `vulnerable` = confirmed vuln; `warning` = suspicious-unconfirmed; `failed` = could not run; `not applicable` = check doesn't apply, observations required). Requires the check to be focused first (step 3).
-8. POST /api/v1/check/{check_id}/finish  — requires a recorded result (not pending/focused) and non-empty observations. carries the notes diff inline. (a multi-run check resets to pending and returns 409 `run_again` instead of settling; see Runs)
+6. PUT /api/v1/check/{check_id}/raw-captures
+7. PUT /api/v1/check/{check_id}/status  — passed, vulnerable, warning, failed, not applicable (be precise about this! `passed` = ran and target is fine; `vulnerable` = confirmed vuln; `warning` = suspicious-unconfirmed; `failed` = could not run; `not applicable` = check doesn't apply, observations required). Requires the check to be focused first (step 3). When notes_required=true and the status is passed|warning|vulnerable, carry notes_old_string + notes_new_string here.
+8. POST /api/v1/check/{check_id}/finish  — requires a recorded result (not pending/focused) and non-empty observations. (a multi-run check resets to pending and returns 409 `run_again` instead of settling; see Runs)
 9. PATCH /api/v1/notes  — optional, only when notes_required=false
 
 # Work-on-Endpoints phase loop
@@ -89,7 +89,7 @@ Guards: `focused` requires a feature group; `tested` requires checks adjusted + 
 2. Any checks not needed or too much? -> Set status to "not applicable" with a observation (observations are mandatory)
 3. POST /api/v1/endpoint/{endpoint_id}/checks-adjusted (confirm step 2. is finished) 
 4. For each endpoint check: do the work now! It's testing time!
-5. PUT /api/v1/check/{check_id}/status and observations with `endpoint_id` set — the response's `next` names the next pending check for this endpoint. To read a single per-endpoint check first, scope it: GET /api/v1/check/{check_id}?endpoint_id=… (returns only this endpoint's result, not the full matrix)
+5. PUT /api/v1/check/{check_id}/status and observations with `endpoint_id` set (notes diff as in the checklist loop) — the response's `next` names the next pending check for this endpoint. To read a single per-endpoint check first, scope it: GET /api/v1/check/{check_id}?endpoint_id=… (returns only this endpoint's result, not the full matrix)
 6. POST /api/v1/endpoint/{endpoint_id}/finish  — marks it tested (same guards as before); its `next` points at the next candidate (a multi-run endpoint resets to todo and returns 409 `run_again` instead of settling; see Runs)
 
 # API Endpoints

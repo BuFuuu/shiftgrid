@@ -56,8 +56,14 @@ class ChecksMixin:
                 if endpoint is not None and endpoint.get("status") == "focused":
                     if check_id not in endpoint.get("checks", []):
                         raise ValueError(f"check {check_id} is not assigned to focused endpoint {endpoint_id}")
-                    if not endpoint.get("checks_adjusted", False):
-                        raise ValueError(f"checks for endpoint {endpoint_id} must be adjusted before running endpoint checks")
+                    # Adjusting checks IS marking the inapplicable ones 'not applicable'
+                    # (or reverting that with 'pending'), so those are allowed before
+                    # POST .../checks-adjusted; real results have to wait for it.
+                    if not endpoint.get("checks_adjusted", False) and status not in ("not applicable", "pending"):
+                        raise ValueError(
+                            f"checks for endpoint {endpoint_id} must be adjusted before running endpoint checks: "
+                            f"mark inapplicable ones 'not applicable', then POST /api/v1/endpoint/{endpoint_id}/checks-adjusted"
+                        )
         r = self._get_or_init_result(item, endpoint_id)
 
         # Mandatory focus gate for global-scope checks: claim the check

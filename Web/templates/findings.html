@@ -102,6 +102,7 @@
   {% if sev == 'info' %}{% set counts.info = counts.info + 1 %}{% endif %}
 {% endfor %}
 
+<div class="checklist-toolbar findings-toolbar">
 <section class="findings-summary">
   <div class="sev-stat severity-critical" data-sev="critical" role="button" tabindex="0" aria-pressed="false" title="Show only critical findings"><div class="sev-stat-icon">{{ severity_icon('critical') }}</div><div class="sev-stat-num">{{ counts.critical }}</div><div class="sev-stat-label">Critical</div></div>
   <div class="sev-stat severity-high" data-sev="high" role="button" tabindex="0" aria-pressed="false" title="Show only high findings"><div class="sev-stat-icon">{{ severity_icon('high') }}</div><div class="sev-stat-num">{{ counts.high }}</div><div class="sev-stat-label">High</div></div>
@@ -109,6 +110,14 @@
   <div class="sev-stat severity-low" data-sev="low" role="button" tabindex="0" aria-pressed="false" title="Show only low findings"><div class="sev-stat-icon">{{ severity_icon('low') }}</div><div class="sev-stat-num">{{ counts.low }}</div><div class="sev-stat-label">Low</div></div>
   <div class="sev-stat severity-info" data-sev="info" role="button" tabindex="0" aria-pressed="false" title="Show only info findings"><div class="sev-stat-icon">{{ severity_icon('info') }}</div><div class="sev-stat-num">{{ counts.info }}</div><div class="sev-stat-label">Info</div></div>
 </section>
+{% if project.findings %}
+  <span class="checklist-action-sep" aria-hidden="true"></span>
+  <div class="check-action-stats">
+    {{ list_search_toggle('findings-search') }}
+  </div>
+  {{ list_search_bar('findings-search', '.finding-card', placeholder='Search findings, descriptions, ids…') }}
+{% endif %}
+</div>
 
 {% if project.findings %}
   <div class="findings-cards">

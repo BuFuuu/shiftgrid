@@ -130,7 +130,7 @@
 {% else %}
 <div class="checklist-toolbar endpoints-toolbar">
   <div class="check-filter-stats endpoint-filter-stats" aria-label="Filter by status">
-    {% for s in ['todo','focused','tested','out-of-scope','vulnerable'] %}
+    {% for s in ['vulnerable','todo','focused','tested','out-of-scope'] %}
       <div class="check-filter-stat f-{{ s }}" data-status="{{ s }}" role="button" tabindex="0" aria-pressed="false" title="Show only {{ s }} endpoints">
         <div class="check-filter-stat-icon">{{ endpoint_status_icon(s) }}</div>
         <div class="check-filter-stat-num" data-count>0</div>
@@ -152,7 +152,9 @@
       </div>
       <div class="check-filter-stat-label">Sort</div>
     </button>
+    {{ list_search_toggle('endpoints-search') }}
   </div>
+  {{ list_search_bar('endpoints-search', '.endpoint-card', '.feature-group', '.feature-group-title', 'Search endpoints, checks, observations…') }}
 </div>
 <div class="feature-group-list">
 {% for gid in group_order %}
@@ -562,7 +564,10 @@
     const filterStats = Array.from(toolbar.querySelectorAll('.check-filter-stat[data-status]'));
     const foldButton = document.getElementById('endpoints-fold-toggle');
     const sortButton = document.getElementById('endpoints-sort-toggle');
-    const statusRank = { vulnerable: 0, focused: 1, todo: 2, tested: 3, 'out-of-scope': 4 };
+    // Sort follows the status tiles left to right, exactly like the checklist
+    // page, so the toolbar itself is the legend for the sorted order.
+    const statusRank = {};
+    filterStats.forEach(function (stat, i) { statusRank[stat.dataset.status] = i; });
     const selected = {};
 
     // An endpoint carries its lifecycle status plus "vulnerable" when any assigned

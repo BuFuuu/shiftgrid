@@ -2310,6 +2310,103 @@ table.list tr.sub td.indent { padding-left: 22px; color: var(--muted); }
   background: var(--border);
   margin: 0 2px;
 }
+
+/* ---------- List search (endpoints / checklist / findings) ----------
+   The magnifier tile opens a bar that wraps onto its own toolbar row (flex
+   basis 100%); list-search.js filters + highlights the rendered list in place. */
+.list-search-bar {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-2);
+  border-radius: 12px;
+  padding: 6px 8px 6px 14px;
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.list-search-bar[hidden] { display: none; }
+.list-search-bar:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--shadow), 0 0 0 3px rgba(28,156,236,0.18);
+}
+.list-search-bar-icon { display: inline-flex; flex: none; opacity: 0.85; }
+.list-search-bar input.list-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 6px 0;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+}
+.list-search-bar input.list-search-input:focus { box-shadow: none; }
+.list-search-input::-webkit-search-cancel-button { display: none; }
+.list-search-input::placeholder { color: var(--muted); }
+.list-search-count {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.list-search-bar.no-results .list-search-count { color: var(--bad); }
+.list-search-clear {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.list-search-clear:hover { background: var(--chip); color: var(--text); }
+.list-search-kbd {
+  flex: none;
+  font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 3px 6px;
+  border: 1px solid var(--border-2);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  color: var(--muted);
+}
+.list-search-bar:focus-within .list-search-kbd { display: none; }
+
+/* Matches: highlighter-amber marks in text; a matching ring on form fields and
+   tooltip icons whose hidden text matched. */
+mark.list-search-mark {
+  background: color-mix(in srgb, var(--sp-amber) 34%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sp-amber) 55%, transparent);
+}
+.list-search-hit {
+  outline: 2px solid color-mix(in srgb, var(--sp-amber) 70%, transparent);
+  outline-offset: 1px;
+}
+
+/* Non-matching items hide via a class so the status filters' own `hidden`
+   toggling stays independent; groups hide once no item in them is visible. */
+.list-search-miss { display: none !important; }
+.list-searching [data-ls-group]:not(.list-search-group-hit):not(:has([data-ls-item]:not([hidden]):not(.list-search-miss))) {
+  display: none !important;
+}
+
+/* Findings: severity panels + search tile share one toolbar row. */
+.findings-toolbar .findings-summary { flex: 1 1 0; min-width: 0; margin-bottom: 0; }
 .count-pill { margin-right: 4px; }
 .endpoint-link-pill {
   display: inline-block;

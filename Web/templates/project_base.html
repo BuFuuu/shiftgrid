@@ -32,6 +32,33 @@
 </form>
 {%- endmacro %}
 
+{# List search (static/list-search.js): a magnifier tile that sits next to a
+   page's Sort tile, and the search bar it opens. The bar goes last inside the
+   toolbar so it wraps onto its own row. `items` / `groups` / `group_head` are
+   CSS selectors for the list items, their collapsible wrappers, and a wrapper's
+   title. #}
+{% macro list_search_toggle(bar_id) -%}
+<button type="button" class="check-filter-stat check-action-stat list-search-toggle" data-list-search-toggle="{{ bar_id }}" aria-controls="{{ bar_id }}" aria-pressed="false" title="Search this list (/)">
+  <div class="check-filter-stat-icon">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.3 15.3L20 20"/><path d="M7.6 9.2a3.2 3.2 0 0 1 2.2-2.1" opacity="0.55"/></svg>
+  </div>
+  <div class="check-filter-stat-label">Search</div>
+</button>
+{%- endmacro %}
+{% macro list_search_bar(bar_id, items, groups='', group_head='', placeholder='Search…') -%}
+<div class="list-search-bar" id="{{ bar_id }}" role="search" data-items="{{ items }}"{% if groups %} data-groups="{{ groups }}"{% endif %}{% if group_head %} data-group-head="{{ group_head }}"{% endif %} hidden>
+  <span class="list-search-bar-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.3 15.3L20 20"/></svg>
+  </span>
+  <input type="search" class="list-search-input" placeholder="{{ placeholder }}" aria-label="{{ placeholder }}" autocomplete="off" spellcheck="false">
+  <span class="list-search-count" aria-live="polite"></span>
+  <kbd class="list-search-kbd" title="Press / to search">/</kbd>
+  <button type="button" class="list-search-clear" title="Clear search (Esc closes)" aria-label="Clear search">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+</div>
+{%- endmacro %}
+
 {# Runs control: a loop icon carrying the run count (×N). Clicking it opens a tiny
    inline form (revealed by live.js) to change how many times a phase, check or
    endpoint runs this run. `target` is an int or the string 'indefinite' (1 =
